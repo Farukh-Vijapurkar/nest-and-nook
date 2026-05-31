@@ -7,6 +7,10 @@ export default function GuestsPage() {
   const [guests, setGuests] = useState<any[]>([]);
   const [search, setSearch] = useState("");
 
+  useEffect(() => {
+    loadGuests();
+  }, []);
+
   async function loadGuests() {
     const { data, error } = await supabase
       .from("guests")
@@ -19,10 +23,6 @@ export default function GuestsPage() {
       setGuests(data);
     }
   }
-
-  useEffect(() => {
-    loadGuests();
-  }, []);
 
   const filteredGuests = guests.filter(
     (guest) =>
@@ -45,7 +45,7 @@ export default function GuestsPage() {
       </h1>
 
       <input
-        className="border p-2 rounded w-full max-w-md mb-6"
+        className="border p-3 rounded-lg w-full max-w-md mb-6"
         placeholder="Search Guest..."
         value={search}
         onChange={(e) =>
@@ -53,94 +53,127 @@ export default function GuestsPage() {
         }
       />
 
-      <table className="border-collapse border w-full">
+      <div className="overflow-x-auto">
 
-        <thead>
-          <tr>
+        <table className="border-collapse border w-full">
 
-            <th className="border p-2">
-              Name
-            </th>
+          <thead>
 
-            <th className="border p-2">
-              Phone
-            </th>
+            <tr className="bg-slate-100">
 
-            <th className="border p-2">
-              Email
-            </th>
+              <th className="border p-3 text-left">
+                Name
+              </th>
 
-            <th className="border p-2">
-              ID Type
-            </th>
+              <th className="border p-3 text-left">
+                Phone
+              </th>
 
-            <th className="border p-2">
-              ID Number
-            </th>
+              <th className="border p-3 text-left">
+                Email
+              </th>
 
-            <th className="border p-2">
-              Notes
-            </th>
+              <th className="border p-3 text-left">
+                ID Type
+              </th>
 
-            <th className="border p-2">
-              Document
-            </th>
+              <th className="border p-3 text-left">
+                ID Number
+              </th>
 
-          </tr>
-        </thead>
+              <th className="border p-3 text-left">
+                Notes
+              </th>
 
-        <tbody>
-
-          {filteredGuests.map((guest) => (
-            <tr key={guest.id}>
-
-              <td className="border p-2">
-                {guest.full_name}
-              </td>
-
-              <td className="border p-2">
-                {guest.phone}
-              </td>
-
-              <td className="border p-2">
-                {guest.email}
-              </td>
-
-              <td className="border p-2">
-                {guest.id_type}
-              </td>
-
-              <td className="border p-2">
-                {guest.id_number}
-              </td>
-
-              <td className="border p-2">
-                {guest.notes}
-              </td>
-
-              <td className="border p-2">
-
-                {guest.document_url ? (
-                  <a
-                    href={guest.document_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-500 underline"
-                  >
-                    View Document
-                  </a>
-                ) : (
-                  "-"
-                )}
-
-              </td>
+              <th className="border p-3 text-left">
+                Document
+              </th>
 
             </tr>
-          ))}
 
-        </tbody>
+          </thead>
 
-      </table>
+          <tbody>
+
+            {filteredGuests.length === 0 ? (
+
+              <tr>
+                <td
+                  colSpan={7}
+                  className="border p-6 text-center text-muted-foreground"
+                >
+                  No guests found
+                </td>
+              </tr>
+
+            ) : (
+
+              filteredGuests.map((guest) => (
+
+                <tr
+                  key={guest.id}
+                  className="hover:bg-slate-50"
+                >
+
+                  <td className="border p-3">
+
+                    <a
+                      href={`/guests/${guest.id}`}
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      {guest.full_name}
+                    </a>
+
+                  </td>
+
+                  <td className="border p-3">
+                    {guest.phone || "-"}
+                  </td>
+
+                  <td className="border p-3">
+                    {guest.email || "-"}
+                  </td>
+
+                  <td className="border p-3">
+                    {guest.id_type || "-"}
+                  </td>
+
+                  <td className="border p-3">
+                    {guest.id_number || "-"}
+                  </td>
+
+                  <td className="border p-3">
+                    {guest.notes || "-"}
+                  </td>
+
+                  <td className="border p-3">
+
+                    {guest.document_url ? (
+                      <a
+                        href={guest.document_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        View Document
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+
+                  </td>
+
+                </tr>
+
+              ))
+
+            )}
+
+          </tbody>
+
+        </table>
+
+      </div>
 
     </div>
   );
