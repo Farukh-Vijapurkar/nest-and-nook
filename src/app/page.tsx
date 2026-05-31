@@ -85,6 +85,20 @@ export default function Home() {
   const profit =
     revenue - totalExpenses;
 
+  const occupancy =
+    bookings.length > 0
+      ? Math.round(
+          (
+            bookings.filter(
+              (b) =>
+                b.status === "confirmed" ||
+                b.status === "checked_in"
+            ).length /
+            bookings.length
+          ) * 100
+        )
+      : 0;
+
   // STEP 1 — sum guest_count instead of using bookings.length
   const totalGuests =
     bookings.reduce(
@@ -93,14 +107,15 @@ export default function Home() {
       0
     );
 
-  const chartData = [
-    { month: "Jan", revenue: 4000 },
-    { month: "Feb", revenue: 7000 },
-    { month: "Mar", revenue: 10000 },
-    { month: "Apr", revenue: 18000 },
-    { month: "May", revenue: 13500 },
-    { month: "Jun", revenue: 22000 },
-  ];
+  const chartData =
+  bookings.length > 0
+    ? bookings.map((booking, index) => ({
+        month: `B${index + 1}`,
+        revenue: Number(
+          booking.total_amount || 0
+        ),
+      }))
+    : [];
 
   return (
     <div className="p-10 space-y-8">
@@ -110,20 +125,17 @@ export default function Home() {
       <div
         className="
           rounded-3xl
-          bg-gradient-to-r
-          from-violet-600
-          via-purple-600
-          to-indigo-600
+          bg-zinc-900
           p-8
           text-white
-          shadow-xl
+          shadow-sm
         "
       >
-        <h1 className="text-5xl font-bold">
-          Welcome back, Farukh! 👋
+        <h1 className="text-4xl font-semibold tracking-tight">
+          Welcome back, Farukh! 
         </h1>
 
-        <p className="mt-3 text-violet-100 text-lg">
+        <p className="mt-3 text-zinc-300">
           Here's what's happening at Nest & Nook today.
         </p>
       </div>
@@ -149,9 +161,9 @@ export default function Home() {
 
               </div>
 
-              <div className="bg-violet-100 p-4 rounded-2xl">
+              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
                 <IndianRupee
-                  className="text-violet-600"
+                  className="text-[#C6A664]"
                   size={28}
                 />
               </div>
@@ -178,9 +190,9 @@ export default function Home() {
 
               </div>
 
-              <div className="bg-blue-100 p-4 rounded-2xl">
+              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
                 <CalendarDays
-                  className="text-blue-600"
+                  className="text-[#C6A664]"
                   size={28}
                 />
               </div>
@@ -207,9 +219,9 @@ export default function Home() {
 
               </div>
 
-              <div className="bg-green-100 p-4 rounded-2xl">
+              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
                 <TrendingUp
-                  className="text-green-600"
+                  className="text-[#C6A664]"
                   size={28}
                 />
               </div>
@@ -237,9 +249,9 @@ export default function Home() {
 
               </div>
 
-              <div className="bg-orange-100 p-4 rounded-2xl">
+              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
                 <Users
-                  className="text-orange-600"
+                  className="text-[#C6A664]"
                   size={28}
                 />
               </div>
@@ -286,13 +298,13 @@ export default function Home() {
 
                       <stop
                         offset="5%"
-                        stopColor="#8b5cf6"
+                        stopColor="#334155"
                         stopOpacity={0.5}
                       />
 
                       <stop
                         offset="95%"
-                        stopColor="#8b5cf6"
+                        stopColor="#334155"
                         stopOpacity={0}
                       />
 
@@ -307,7 +319,7 @@ export default function Home() {
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="#8b5cf6"
+                    stroke="#334155"
                     fill="url(#revenueGradient)"
                   />
 
@@ -333,8 +345,8 @@ export default function Home() {
 
             <div className="text-center">
 
-              <div className="text-7xl font-bold text-violet-600">
-                84%
+              <div className="text-6xl font-bold text-slate-900">
+                {occupancy}%
               </div>
 
               <p className="mt-4 text-muted-foreground">
@@ -363,37 +375,43 @@ export default function Home() {
 
           <CardContent>
 
-            {bookings.slice(0, 5).map((booking) => (
+            {bookings.length === 0 ? (
+              <p className="text-muted-foreground">
+                No upcoming check-ins
+              </p>
+            ) : (
+              bookings.slice(0, 5).map((booking) => (
 
-              <div
-                key={booking.id}
-                className="border-b py-4"
-              >
+                <div
+                  key={booking.id}
+                  className="border-b py-4"
+                >
 
-                <div className="flex justify-between">
+                  <div className="flex justify-between">
 
-                  <div>
+                    <div>
 
-                    <p className="font-semibold">
-                      {booking.guests?.full_name ??
-                        "Guest"}
-                    </p>
+                      <p className="font-semibold">
+                        {booking.guests?.full_name ??
+                          "Guest"}
+                      </p>
 
-                    <p className="text-sm text-muted-foreground">
-                      Check-in
+                      <p className="text-sm text-muted-foreground">
+                        Check-in
+                      </p>
+
+                    </div>
+
+                    <p className="font-medium">
+                      {booking.check_in}
                     </p>
 
                   </div>
 
-                  <p className="font-medium">
-                    {booking.check_in}
-                  </p>
-
                 </div>
 
-              </div>
-
-            ))}
+              ))
+            )}
 
           </CardContent>
 
