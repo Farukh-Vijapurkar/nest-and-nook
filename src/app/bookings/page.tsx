@@ -5,8 +5,16 @@ import { supabase } from "@/lib/supabase";
 
 export default function BookingsPage() {
   const [guestName, setGuestName] = useState("");
-  const [amount, setAmount] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
+  const [idType, setIdType] = useState("");
+  const [idNumber, setIdNumber] = useState("");
 
+  const [documentFile, setDocumentFile] =
+    useState<File | null>(null);
+
+  const [amount, setAmount] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
 
@@ -18,7 +26,10 @@ export default function BookingsPage() {
       .select(`
         *,
         guests (
-          full_name
+          full_name,
+          phone,
+          email,
+          document_url
         )
       `)
       .order("created_at", { ascending: false });
@@ -34,44 +45,77 @@ export default function BookingsPage() {
 
   async function addBooking() {
     try {
-      const { data: property } = await supabase
-        .from("properties")
-        .select("*")
-        .limit(1)
-        .single();
+      let documentUrl = "";
+
+      if (documentFile) {
+        const fileName =
+          `${Date.now()}-${documentFile.name}`;
+
+        const { error: uploadError } =
+          await supabase.storage
+            .from("guest-documents")
+            .upload(fileName, documentFile);
+
+        if (uploadError) {
+          alert(uploadError.message);
+          return;
+        }
+
+        const { data } =
+          supabase.storage
+            .from("guest-documents")
+            .getPublicUrl(fileName);
+
+        documentUrl = data.publicUrl;
+      }
+
+      const { data: property } =
+        await supabase
+          .from("properties")
+          .select("*")
+          .limit(1)
+          .single();
 
       if (!property) {
         alert("Property not found");
         return;
       }
 
-      const { data: guest } = await supabase
-        .from("guests")
-        .insert([
-          {
-            full_name: guestName,
-          },
-        ])
-        .select()
-        .single();
+      const { data: guest } =
+        await supabase
+          .from("guests")
+          .insert([
+            {
+              full_name: guestName,
+              phone,
+              email,
+              notes,
+              id_type: idType,
+              id_number: idNumber,
+              document_url: documentUrl,
+            },
+          ])
+          .select()
+          .single();
 
       if (!guest) {
         alert("Failed to create guest");
         return;
       }
 
-      const { error } = await supabase
-        .from("bookings")
-        .insert([
-          {
-            property_id: property.id,
-            guest_id: guest.id,
-            check_in: checkIn,
-            check_out: checkOut,
-            total_amount: Number(amount),
-            status: "confirmed",
-          },
-        ]);
+      const { error } =
+        await supabase
+          .from("bookings")
+          .insert([
+            {
+              property_id: property.id,
+              guest_id: guest.id,
+              check_in: checkIn,
+              check_out: checkOut,
+              total_amount: Number(amount),
+              status: "confirmed",
+            },
+          ]);
 
       if (error) {
         alert(error.message);
@@ -79,6 +123,13 @@ export default function BookingsPage() {
       }
 
       setGuestName("");
+      setPhone("");
+      setEmail("");
+      setNotes("");
+      setIdType("");
+      setIdNumber("");
+      setDocumentFile(null);
+
       setAmount("");
       setCheckIn("");
       setCheckOut("");
@@ -100,7 +151,7 @@ export default function BookingsPage() {
         Bookings
       </h1>
 
-      <div className="flex flex-col gap-4 max-w-md">
+      <div className="flex flex-col gap-4 max-w-xl">
 
         <input
           className="border p-2 rounded"
@@ -113,6 +164,63 @@ export default function BookingsPage() {
 
         <input
           className="border p-2 rounded"
+          placeholder="Phone Number"
+          value={phone}
+          onChange={(e) =>
+            setPhone(e.target.value)
+          }
+        />
+
+        <input
+          className="border p-2 rounded"
+          placeholder="Email"
+          value={email}
+          onChange={(e) =>
+            setEmail(e.target.value)
+          }
+        />
+
+        <input
+          className="border p-2 rounded"
+          placeholder="ID Type"
+          value={idType}
+          onChange={(e) =>
+            setIdType(e.target.value)
+          }
+        />
+
+        <input
+          className="border p-2 rounded"
+          placeholder="ID Number"
+          value={idNumber}
+          onChange={(e) =>
+            setIdNumber(e.target.value)
+          }
+        />
+
+        <textarea
+          className="border p-2 rounded"
+          placeholder="Notes"
+          value={notes}
+          onChange={(e) =>
+            setNotes(e.target.value)
+          }
+        />
+
+        <input
+          type="file"
+          className="border p-2 rounded"
+          onChange={(e) => {
+            if (e.target.files?.[0]) {
+              setDocumentFile(
+                e.target.files[0]
+              );
+            }
+          }}
+        />
+
+        <input
+          className="border p-2 rounded"
           placeholder="Amount"
           type="number"
           value={amount}
@@ -121,9 +229,7 @@ export default function BookingsPage() {
           }
         />
 
-        <label>
-          Check In Date
-        </label>
+        <label>Check In Date</label>
 
         <input
           className="border p-2 rounded"
@@ -134,9 +240,7 @@ export default function BookingsPage() {
           }
         />
 
-        <label>
-          Check Out Date
-        </label>
+        <label>Check Out Date</label>
 
         <input
           className="border p-2 rounded"
@@ -171,6 +275,14 @@ export default function BookingsPage() {
               </th>
 
               <th className="border p-2">
+                Phone
+              </th>
+
+              <th className="border p-2">
+                Email
+              </th>
+
+              <th className="border p-2">
                 Check In
               </th>
 
@@ -183,7 +295,7 @@ export default function BookingsPage() {
               </th>
 
               <th className="border p-2">
-                Status
+                Document
               </th>
             </tr>
           </thead>
@@ -195,6 +307,14 @@ export default function BookingsPage() {
 
                 <td className="border p-2">
                   {booking.guests?.full_name}
+                </td>
+
+                <td className="border p-2">
+                  {booking.guests?.phone}
+                </td>
+
+                <td className="border p-2">
+                  {booking.guests?.email}
                 </td>
 
                 <td className="border p-2">
@@ -210,7 +330,20 @@ export default function BookingsPage() {
                 </td>
 
                 <td className="border p-2">
-                  {booking.status}
+                  {booking.guests?.document_url ? (
+                    <a
+                      href={
+                        booking.guests.document_url
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-500 underline"
+                    >
+                      View
+                    </a>
+                  ) : (
+                    "-"
+                  )}
                 </td>
 
               </tr>
