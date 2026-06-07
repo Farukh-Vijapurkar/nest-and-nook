@@ -132,7 +132,7 @@ export default function Home() {
         "
       >
         <h1 className="text-4xl font-semibold tracking-tight">
-          Welcome back, Farukh! 
+          Welcome back, AYAAN! 
         </h1>
 
         <p className="mt-3 text-zinc-300">

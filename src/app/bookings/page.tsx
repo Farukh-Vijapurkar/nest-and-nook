@@ -37,6 +37,8 @@ export default function BookingsPage() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [bookings, setBookings] = useState<any[]>([]);
+  const [dateConflict, setDateConflict] = useState(false);
+  const [invalidDateRange, setInvalidDateRange] = useState(false); // ✅ NEW
 
   async function loadBookings() {
     const { data, error } = await supabase
@@ -55,6 +57,39 @@ export default function BookingsPage() {
     if (!error && data) {
       setBookings(data);
     }
+  }
+
+  async function checkAvailability(
+    startDate: string,
+    endDate: string
+  ) {
+    if (!startDate || !endDate) {
+      setDateConflict(false);
+      setInvalidDateRange(false); // ✅
+      return;
+    }
+
+    // ✅ NEW: Validate date range first
+    if (new Date(endDate) < new Date(startDate)) {
+      setInvalidDateRange(true);
+      setDateConflict(false);
+      return;
+    }
+
+    setInvalidDateRange(false); // ✅ Clear if valid
+
+    const { data } = await supabase
+      .from("bookings")
+      .select("*")
+      .neq("status", "cancelled");
+
+    const overlap = data?.some(
+      (booking) =>
+        new Date(startDate) <= new Date(booking.check_out) &&
+        new Date(endDate) >= new Date(booking.check_in)
+    );
+
+    setDateConflict(Boolean(overlap));
   }
 
   useEffect(() => {
@@ -113,6 +148,23 @@ export default function BookingsPage() {
 
       if (!guest) {
         alert("Failed to create guest");
+        return;
+      }
+
+      // ✅ Overlap check
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("*")
+        .neq("status", "cancelled");
+
+      const overlap = existingBookings?.some(
+        (booking) =>
+          new Date(checkIn) <= new Date(booking.check_out) &&
+          new Date(checkOut) >= new Date(booking.check_in)
+      );
+
+      if (overlap) {
+        alert("Selected dates are already booked.");
         return;
       }
 
@@ -216,7 +268,11 @@ export default function BookingsPage() {
             <div>
               <p className="text-muted-foreground">Upcoming</p>
               <h2 className="text-3xl font-bold">
-                {bookings.filter((booking) => booking.status === "confirmed").length}
+                {
+                  bookings.filter(
+                    (booking) => booking.status === "confirmed"
+                  ).length
+                }
               </h2>
             </div>
           </CardContent>
@@ -225,276 +281,348 @@ export default function BookingsPage() {
 
       <div className="grid lg:grid-cols-3 gap-6 mb-10">
 
-  <div className="lg:col-span-2">
+        <div className="lg:col-span-2">
 
-    <Card>
+          <Card>
 
-        <CardHeader>
+            <CardHeader>
 
-          <CardTitle>
-            Create New Booking
-          </CardTitle>
+              <CardTitle>
+                Create New Booking
+              </CardTitle>
 
-          <p className="text-muted-foreground">
-            Add guest details and booking information.
-          </p>
+              <p className="text-muted-foreground">
+                Add guest details and booking information.
+              </p>
 
-        </CardHeader>
+            </CardHeader>
 
-        <CardContent>
+            <CardContent>
 
-          <div className="grid gap-4">
+              <div className="grid gap-4">
 
-            <h3 className="text-lg font-semibold border-b pb-2">
-              Guest Information
-            </h3>
+                <h3 className="text-lg font-semibold border-b pb-2">
+                  Guest Information
+                </h3>
 
-            <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-4">
 
-              <Input
-                placeholder="Guest Name"
-                value={guestName}
-                onChange={(e) =>
-                  setGuestName(e.target.value)
-                }
-              />
+                  <Input
+                    placeholder="Guest Name"
+                    value={guestName}
+                    onChange={(e) =>
+                      setGuestName(e.target.value)
+                    }
+                  />
 
-              <Input
-                placeholder="Phone Number"
-                value={phone}
-                onChange={(e) =>
-                  setPhone(e.target.value)
-                }
-              />
+                  <Input
+                    placeholder="Phone Number"
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value)
+                    }
+                  />
 
-              <Input
-                placeholder="Email"
-                value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
-              />
+                  <Input
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(e.target.value)
+                    }
+                  />
 
-              <Input
-                placeholder="ID Type"
-                value={idType}
-                onChange={(e) =>
-                  setIdType(e.target.value)
-                }
-              />
+                  <Input
+                    placeholder="ID Type"
+                    value={idType}
+                    onChange={(e) =>
+                      setIdType(e.target.value)
+                    }
+                  />
 
-              <Input
-                placeholder="ID Number"
-                value={idNumber}
-                onChange={(e) =>
-                  setIdNumber(e.target.value)
-                }
-              />
+                  <Input
+                    placeholder="ID Number"
+                    value={idNumber}
+                    onChange={(e) =>
+                      setIdNumber(e.target.value)
+                    }
+                  />
 
-              <div>
+                  <div>
 
-                <label className="text-sm font-medium mb-2 block">
-                  Number of Guests
-                </label>
+                    <label className="text-sm font-medium mb-2 block">
+                      Number of Guests
+                    </label>
+
+                    <Input
+                      type="number"
+                      value={guestCount}
+                      onChange={(e) =>
+                        setGuestCount(
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+
+                  </div>
+
+                </div>
+
+                {guestCount > 1 && (
+                  <div>
+                    <label className="block mb-2 font-medium">
+                      Additional Guests
+                    </label>
+                    {Array.from({ length: guestCount - 1 }).map(
+                      (_, index) => (
+                        <input
+                          key={index}
+                          className="border p-2 rounded w-full mb-2"
+                          placeholder={`Guest ${index + 2} Name`}
+                          value={additionalGuests[index] || ""}
+                          onChange={(e) => {
+                            const updated = [...additionalGuests];
+                            updated[index] = e.target.value;
+                            setAdditionalGuests(updated);
+                          }}
+                        />
+                      )
+                    )}
+                  </div>
+                )}
+
+                <Textarea
+                  placeholder="Notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+
+                <h3 className="text-lg font-semibold border-b pb-2 mt-4">
+                  Documents
+                </h3>
 
                 <Input
-                  type="number"
-                  value={guestCount}
+                  type="file"
                   onChange={(e) =>
-                    setGuestCount(
-                      Number(e.target.value)
+                    setDocumentFile(
+                      e.target.files?.[0] || null
                     )
                   }
                 />
 
-              </div>
+                <h3 className="text-lg font-semibold border-b pb-2 mt-4">
+                  Booking Information
+                </h3>
 
-            </div>
+                <div className="grid md:grid-cols-2 gap-4">
 
-            {guestCount > 1 && (
-              <div>
-                <label className="block mb-2 font-medium">Additional Guests</label>
-                {Array.from({ length: guestCount - 1 }).map((_, index) => (
-                  <input
-                    key={index}
-                    className="border p-2 rounded w-full mb-2"
-                    placeholder={`Guest ${index + 2} Name`}
-                    value={additionalGuests[index] || ""}
-                    onChange={(e) => {
-                      const updated = [...additionalGuests];
-                      updated[index] = e.target.value;
-                      setAdditionalGuests(updated);
-                    }}
+                  <Input
+                    placeholder="Amount"
+                    value={amount}
+                    onChange={(e) =>
+                      setAmount(e.target.value)
+                    }
                   />
-                ))}
+
+                  <div />
+
+                  <div>
+
+                    <label className="text-sm font-medium mb-2 block">
+                      Check In Date
+                    </label>
+
+                    <Input
+                      type="date"
+                      value={checkIn}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCheckIn(value);
+                        checkAvailability(value, checkOut);
+                      }}
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <label className="text-sm font-medium mb-2 block">
+                      Check Out Date
+                    </label>
+
+                    <Input
+                      type="date"
+                      value={checkOut}
+                      min={checkIn} // ✅ Prevents picking before check-in
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCheckOut(value);
+                        checkAvailability(checkIn, value);
+                      }}
+                    />
+
+                  </div>
+
+                </div>
+
+                {checkIn && checkOut && (
+
+                  <div className="mt-3">
+
+                    {/* ✅ Three-way render: invalid range → conflict → available */}
+                    {invalidDateRange ? (
+
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-red-200
+                          bg-red-50
+                          text-red-700
+                          px-4
+                          py-3
+                        "
+                      >
+                        ❌ Check-out date cannot be before check-in date
+                      </div>
+
+                    ) : dateConflict ? (
+
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-red-200
+                          bg-red-50
+                          text-red-700
+                          px-4
+                          py-3
+                        "
+                      >
+                        ❌ Property already booked for selected dates
+                      </div>
+
+                    ) : (
+
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-green-200
+                          bg-green-50
+                          text-green-700
+                          px-4
+                          py-3
+                        "
+                      >
+                        ✅ Dates available
+                      </div>
+
+                    )}
+
+                  </div>
+
+                )}
+
+                <Button
+                  onClick={addBooking}
+                  disabled={dateConflict || invalidDateRange} // ✅
+                  className="w-full"
+                >
+                  {/* ✅ Three-way button label */}
+                  {invalidDateRange
+                    ? "Invalid Dates"
+                    : dateConflict
+                    ? "Dates Unavailable"
+                    : "Save Booking"}
+                </Button>
+
               </div>
-            )}
 
-            <Textarea
-              placeholder="Notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
+            </CardContent>
 
-            <h3 className="text-lg font-semibold border-b pb-2 mt-4">
-              Documents
-            </h3>
+          </Card>
 
-            <Input
-              type="file"
-              onChange={(e) =>
-                setDocumentFile(
-                  e.target.files?.[0] || null
-                )
-              }
-            />
+        </div>
 
-            <h3 className="text-lg font-semibold border-b pb-2 mt-4">
-              Booking Information
-            </h3>
+        <Card>
 
-            <div className="grid md:grid-cols-2 gap-4">
+          <CardHeader>
+            <CardTitle>
+              Operations
+            </CardTitle>
+          </CardHeader>
 
-              <Input
-                placeholder="Amount"
-                value={amount}
-                onChange={(e) =>
-                  setAmount(e.target.value)
+          <CardContent className="space-y-6">
+
+            <div>
+
+              <p className="text-sm text-muted-foreground">
+                Today's Check-ins
+              </p>
+
+              <h3 className="text-3xl font-bold">
+                {
+                  bookings.filter(
+                    (booking) =>
+                      booking.status === "checked_in"
+                  ).length
                 }
-              />
-
-              <div />
-
-              <div>
-
-                <label className="text-sm font-medium mb-2 block">
-                  Check In Date
-                </label>
-
-                <Input
-                  type="date"
-                  value={checkIn}
-                  onChange={(e) =>
-                    setCheckIn(e.target.value)
-                  }
-                />
-
-              </div>
-
-              <div>
-
-                <label className="text-sm font-medium mb-2 block">
-                  Check Out Date
-                </label>
-
-                <Input
-                  type="date"
-                  value={checkOut}
-                  onChange={(e) =>
-                    setCheckOut(e.target.value)
-                  }
-                />
-
-              </div>
+              </h3>
 
             </div>
 
-            <Button
-              onClick={addBooking}
-              className="w-full"
-            >
-              Save Booking
-            </Button>
+            <div>
 
-          </div>
+              <p className="text-sm text-muted-foreground">
+                Today's Check-outs
+              </p>
 
-        </CardContent>
+              <h3 className="text-3xl font-bold">
+                {
+                  bookings.filter(
+                    (booking) =>
+                      booking.status === "checked_out"
+                  ).length
+                }
+              </h3>
 
-      </Card>
+            </div>
 
-  </div>
+            <div>
 
-  <Card>
+              <p className="text-sm text-muted-foreground">
+                Latest Guest
+              </p>
 
-    <CardHeader>
-      <CardTitle>
-        Operations
-      </CardTitle>
-    </CardHeader>
+              <h3 className="font-semibold">
+                {
+                  bookings[0]?.guests?.full_name ||
+                  "-"
+                }
+              </h3>
 
-    <CardContent className="space-y-6">
+            </div>
 
-      <div>
+            <div>
 
-        <p className="text-sm text-muted-foreground">
-          Today's Check-ins
-        </p>
+              <p className="text-sm text-muted-foreground">
+                Latest Booking
+              </p>
 
-        <h3 className="text-3xl font-bold">
-          {
-            bookings.filter(
-              (booking) =>
-                booking.status ===
-                "checked_in"
-            ).length
-          }
-        </h3>
+              <h3 className="font-semibold">
+                ₹{
+                  bookings[0]?.total_amount ||
+                  0
+                }
+              </h3>
 
-      </div>
+            </div>
 
-      <div>
+          </CardContent>
 
-        <p className="text-sm text-muted-foreground">
-          Today's Check-outs
-        </p>
-
-        <h3 className="text-3xl font-bold">
-          {
-            bookings.filter(
-              (booking) =>
-                booking.status ===
-                "checked_out"
-            ).length
-          }
-        </h3>
+        </Card>
 
       </div>
-
-      <div>
-
-        <p className="text-sm text-muted-foreground">
-          Latest Guest
-        </p>
-
-        <h3 className="font-semibold">
-          {
-            bookings[0]?.guests?.full_name ||
-            "-"
-          }
-        </h3>
-
-      </div>
-
-      <div>
-
-        <p className="text-sm text-muted-foreground">
-          Latest Booking
-        </p>
-
-        <h3 className="font-semibold">
-          ₹{
-            bookings[0]?.total_amount ||
-            0
-          }
-        </h3>
-
-      </div>
-
-    </CardContent>
-
-  </Card>
-
-</div>
 
       <div className="mt-10">
         <h2 className="text-3xl font-bold mb-6">Recent Bookings</h2>
