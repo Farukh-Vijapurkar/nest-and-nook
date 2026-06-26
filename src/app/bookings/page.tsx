@@ -107,8 +107,8 @@ export default function BookingsPage() {
 
       const overlap = existingBookings?.some(
         (booking) =>
-          new Date(checkIn) <= new Date(booking.check_out) &&
-          new Date(checkOut) >= new Date(booking.check_in)
+          new Date(checkIn) < new Date(booking.check_out) &&
+          new Date(checkOut) > new Date(booking.check_in)
       );
 
       if (overlap) {
