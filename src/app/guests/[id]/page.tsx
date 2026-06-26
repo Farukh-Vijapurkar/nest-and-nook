@@ -10,6 +10,7 @@ export default function GuestProfile() {
 
   const [guest, setGuest] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +49,22 @@ export default function GuestProfile() {
       }
 
       setBookings(bookingData || []);
+
+      const { data: documentData, error: documentError } =
+        await supabase
+          .from("guest_documents")
+          .select("*")
+          .eq("guest_id", guestId)
+          .order("created_at", {
+            ascending: false,
+          });
+
+      if (documentError) {
+        console.error(documentError);
+      }
+
+      setDocuments(documentData || []);
+
     } catch (error) {
       console.error(error);
     } finally {
@@ -172,19 +189,32 @@ export default function GuestProfile() {
           Uploaded Documents
         </h2>
 
-        {guest.document_url ? (
-          <a
-            href={guest.document_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            View Uploaded Document
-          </a>
+        {documents.length === 0 ? (
+          <p>No documents uploaded.</p>
         ) : (
-          <p>No document uploaded</p>
-        )}
+          <div className="space-y-3">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center space-x-2"
+              > 
+                <div>
+                  <p className="font-medium">{doc.document_name}</p>
+                  <p className="text-sm text-gray-500">{doc.document_type}</p>
+                </div>
 
+                <a
+                  href={doc.document_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  View </a>
+              </div>
+            ))}
+          </div>
+        )}
+               
       </div>
 
       {/* Booking History */}
