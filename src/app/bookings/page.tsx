@@ -32,7 +32,7 @@ export default function BookingsPage() {
   const [notes, setNotes] = useState("");
   const [idType, setIdType] = useState("");
   const [idNumber, setIdNumber] = useState("");
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [amount, setAmount] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -402,6 +402,7 @@ export default function BookingsPage() {
 
                 <Input
                   type="file"
+                  multiple
                   onChange={(e) =>
                     setDocumentFile(
                       e.target.files?.[0] || null
