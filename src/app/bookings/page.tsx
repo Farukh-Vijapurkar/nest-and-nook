@@ -98,14 +98,35 @@ export default function BookingsPage() {
 
   async function addBooking() {
     try {
-      let documentUrl = "";
 
-      if (documentFile) {
-        const fileName = `${Date.now()}-${documentFile.name}`;
+            // ✅ Overlap check
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("*")
+        .neq("status", "cancelled");
+
+      const overlap = existingBookings?.some(
+        (booking) =>
+          new Date(checkIn) <= new Date(booking.check_out) &&
+          new Date(checkOut) >= new Date(booking.check_in)
+      );
+
+      if (overlap) {
+        alert("Selected dates are already booked.");
+        return;
+      }
+
+      const uploadedDocuments: {
+        name: string;
+        url: string;
+      }[] = [];
+
+      for (const file of documentFiles) {
+        const fileName = `${Date.now()}-${file.name}`;
 
         const { error: uploadError } = await supabase.storage
           .from("guest-documents")
-          .upload(fileName, documentFile);
+          .upload(fileName, file);
 
         if (uploadError) {
           alert(uploadError.message);
@@ -116,7 +137,10 @@ export default function BookingsPage() {
           .from("guest-documents")
           .getPublicUrl(fileName);
 
-        documentUrl = data.publicUrl;
+        uploadedDocuments.push({
+          name: file.name,
+          url: data.publicUrl,
+        });
       }
 
       const { data: property } = await supabase
@@ -140,7 +164,7 @@ export default function BookingsPage() {
             notes,
             id_type: idType,
             id_number: idNumber,
-            document_url: documentUrl,
+            document_url: null,
           },
         ])
         .select()
@@ -151,22 +175,23 @@ export default function BookingsPage() {
         return;
       }
 
-      // ✅ Overlap check
-      const { data: existingBookings } = await supabase
-        .from("bookings")
-        .select("*")
-        .neq("status", "cancelled");
+      for (const doc of uploadedDocuments) {
+        const { error } = await supabase
+          .from("guest_documents")
+          .insert({
+            guest_id: guest.id,
+            document_name: doc.name,
+            document_url: doc.url,
+            document_type: "Other", // You can modify this based on your requirements
+          });
 
-      const overlap = existingBookings?.some(
-        (booking) =>
-          new Date(checkIn) <= new Date(booking.check_out) &&
-          new Date(checkOut) >= new Date(booking.check_in)
-      );
-
-      if (overlap) {
-        alert("Selected dates are already booked.");
-        return;
+        if (error) {
+          alert(error.message);
+          return;
+        }
       }
+
+
 
       const { error } = await supabase.from("bookings").insert([
         {
@@ -192,7 +217,7 @@ export default function BookingsPage() {
       setNotes("");
       setIdType("");
       setIdNumber("");
-      setDocumentFile(null);
+      setDocumentFiles([]);
       setGuestCount(1);
       setAdditionalGuests([]);
       setAmount("");
@@ -404,8 +429,8 @@ export default function BookingsPage() {
                   type="file"
                   multiple
                   onChange={(e) =>
-                    setDocumentFile(
-                      e.target.files?.[0] || null
+                    setDocumentFiles(
+                      Array.from(e.target.files || [])
                     )
                   }
                 />
