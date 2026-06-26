@@ -85,8 +85,9 @@ export default function BookingsPage() {
 
     const overlap = data?.some(
       (booking) =>
-        new Date(startDate) <= new Date(booking.check_out) &&
-        new Date(endDate) >= new Date(booking.check_in)
+        booking.status !== "cancelled" &&
+        startDate < booking.check_out &&
+        endDate > booking.check_in
     );
 
     setDateConflict(Boolean(overlap));
@@ -107,8 +108,9 @@ export default function BookingsPage() {
 
       const overlap = existingBookings?.some(
         (booking) =>
-          new Date(checkIn) < new Date(booking.check_out) &&
-          new Date(checkOut) > new Date(booking.check_in)
+        booking.status !== "cancelled" &&
+        checkIn < booking.check_out &&
+        checkOut > booking.check_in
       );
 
       if (overlap) {
