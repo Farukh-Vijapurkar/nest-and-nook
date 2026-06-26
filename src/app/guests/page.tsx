@@ -14,13 +14,37 @@ export default function GuestsPage() {
   async function loadGuests() {
     const { data, error } = await supabase
       .from("guests")
-      .select("*")
-      .order("created_at", {
-        ascending: false,
-      });
+      .select(`
+        *,
+        bookings (
+          check_in
+        )
+      `);
 
     if (!error && data) {
-      setGuests(data);
+      const sortedGuests = data
+        .map((guest: any) => {
+          const latestBooking =
+            guest.bookings && guest.bookings.length > 0
+              ? guest.bookings.sort(
+                  (a: any, b: any) =>
+                    new Date(b.check_in).getTime() -
+                    new Date(a.check_in).getTime()
+                )[0].check_in
+              : null;
+
+          return {
+            ...guest,
+            booked_on: latestBooking,
+          };
+        })
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.booked_on || 0).getTime() -
+            new Date(a.booked_on || 0).getTime()
+        );
+
+      setGuests(sortedGuests);
     }
   }
 
@@ -66,6 +90,10 @@ export default function GuestsPage() {
               </th>
 
               <th className="border p-3 text-left">
+                Booked On
+              </th>
+
+              <th className="border p-3 text-left">
                 Phone
               </th>
 
@@ -99,7 +127,7 @@ export default function GuestsPage() {
 
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="border p-6 text-center text-muted-foreground"
                 >
                   No guests found
@@ -116,14 +144,18 @@ export default function GuestsPage() {
                 >
 
                   <td className="border p-3">
-
-                    <a
+                    <a      
                       href={`/guests/${guest.id}`}
                       className="text-blue-600 hover:underline font-medium"
                     >
                       {guest.full_name}
                     </a>
+                  </td>
 
+                  <td className="border p-3">
+                    {guest.booked_on
+                      ? new Date(guest.booked_on).toLocaleDateString("en-GB")
+                      : "-"}
                   </td>
 
                   <td className="border p-3">
@@ -147,7 +179,6 @@ export default function GuestsPage() {
                   </td>
 
                   <td className="border p-3">
-
                     {guest.document_url ? (
                       <a
                         href={guest.document_url}
