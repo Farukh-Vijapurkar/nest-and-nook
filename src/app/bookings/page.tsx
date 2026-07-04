@@ -38,26 +38,28 @@ export default function BookingsPage() {
   const [checkOut, setCheckOut] = useState("");
   const [bookings, setBookings] = useState<any[]>([]);
   const [dateConflict, setDateConflict] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [invalidDateRange, setInvalidDateRange] = useState(false); // ✅ NEW
 
-  async function loadBookings() {
-    const { data, error } = await supabase
+  async function loadBookings(startDate?: string, endDate?: string) {
+    let query = supabase
       .from("bookings")
-      .select(`
-        *,
-        guests (
-          full_name,
-          phone,
-          email,
-          document_url
-        )
-      `)
-      .order("created_at", { ascending: false });
+      .select(`*, guests(full_name, phone, email, document_url)`);
 
-    if (!error && data) {
-      setBookings(data);
+    if (startDate) {
+      query = query.gte("check_in", startDate);}
+    if (endDate) {
+      query = query.lte("check_in", endDate);
     }
-  }
+    const { data, error } = await query.order("check_in", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+    setBookings(data);
+  } 
 
   async function checkAvailability(
     startDate: string,
@@ -94,7 +96,12 @@ export default function BookingsPage() {
   }
 
   useEffect(() => {
-    loadBookings();
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1) .toISOString().split("T")[0]; 
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0) .toISOString().split("T")[0];
+    setFromDate(firstDay);
+    setToDate(lastDay); 
+    loadBookings(firstDay, lastDay);
   }, []);
 
   async function addBooking() {
@@ -226,7 +233,7 @@ export default function BookingsPage() {
       setCheckIn("");
       setCheckOut("");
 
-      await loadBookings();
+      await loadBookings(fromDate, toDate); // Refresh bookings after adding
       alert("Booking Added Successfully");
     } catch (error) {
       console.error(error);
@@ -253,13 +260,137 @@ export default function BookingsPage() {
         </p>
       </div>
 
+      <div className="mb-8 flex flex-wrap gap-4 items-end">
+
+        <div>
+          <label className="text-sm font-medium block mb-1">
+            From Date
+          </label>
+
+          <Input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium block mb-1">
+            To Date
+          </label>
+
+          <Input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+
+        <Button
+          disabled={!fromDate || !toDate}
+          onClick={() => loadBookings(fromDate, toDate)}
+        >
+          Apply Filter
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => {
+
+            const today = new Date();
+
+            const firstDay = new Date(
+              today.getFullYear(),
+              today.getMonth(),
+              1
+            )
+              .toISOString()
+              .split("T")[0];
+
+            const lastDay = new Date(
+              today.getFullYear(),
+              today.getMonth() + 1,
+              0
+            )
+              .toISOString()
+              .split("T")[0];
+
+            setFromDate(firstDay);
+            setToDate(lastDay);
+
+            loadBookings(firstDay, lastDay);
+
+          }}
+        >
+          Reset
+        </Button>
+
+      </div>
+
+      <div className="flex gap-2 mt-4">
+
+        <Button
+          variant="secondary"
+          onClick={() => {
+            const today = new Date()
+              .toISOString()
+              .split("T")[0];
+
+            setFromDate(today);
+            setToDate(today);
+
+            loadBookings(today, today);
+          }}
+        >
+          Today
+        </Button>
+
+        <Button
+          variant="secondary"
+          onClick={() => {
+
+            const today = new Date();
+
+            const firstDay = new Date(
+              today.getFullYear(),
+              today.getMonth(),
+              1
+            )
+              .toISOString()
+              .split("T")[0];
+
+            const lastDay = new Date(
+              today.getFullYear(),
+              today.getMonth() + 1,
+              0
+            )
+              .toISOString()
+              .split("T")[0];
+
+            setFromDate(firstDay);
+            setToDate(lastDay);
+
+            loadBookings(firstDay, lastDay);
+
+          }}
+        >
+          This Month
+        </Button>
+
+      </div>
+
       <div className="grid md:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between">
               <div>
                 <p className="text-muted-foreground">Revenue</p>
-                <h2 className="text-3xl font-bold">₹{revenue}</h2>
+                <h2 className="text-3xl font-bold">
+                  ₹{revenue.toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </h2>
               </div>
               <IndianRupee />
             </div>
@@ -638,10 +769,10 @@ export default function BookingsPage() {
               </p>
 
               <h3 className="font-semibold">
-                ₹{
-                  bookings[0]?.total_amount ||
-                  0
-                }
+                ₹{Number(bookings[0]?.total_amount || 0).toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} 
               </h3>
 
             </div>
@@ -742,7 +873,10 @@ export default function BookingsPage() {
                       <IndianRupee className="h-4 w-4" />
 
                       <span className="font-bold text-lg">
-                        {booking.total_amount}
+                        {Number(booking.total_amount || 0).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </span>
 
                     </div>
