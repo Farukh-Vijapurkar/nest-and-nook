@@ -1,595 +1,113 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
-import {
-  IndianRupee,
-  CalendarDays,
-  Users,
-  TrendingUp,
-} from "lucide-react";
-
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  Tooltip,
-} from "recharts";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import StatsCards from "@/components/dashboard/StatsCards";
+import PropertyStatus from "@/components/dashboard/PropertyStatus";
+import UpcomingReservations from "@/components/dashboard/UpcomingReservations";
+import FinancialSnapshot from "@/components/dashboard/FinancialSnapshot";
+import QuickActions from "@/components/dashboard/QuickActions";
+import RecentActivity from "@/components/dashboard/RecentActivity";
 
 export default function Home() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
-  const [guests, setGuests] = useState<any[]>([]); // STEP 3
 
   useEffect(() => {
-    loadData();
+    loadDashboard();
   }, []);
 
-  async function loadData() {
-    const { data: bookingsData } =
-      await supabase
-        .from("bookings")
-        .select(`
-          *,
-          guests (
-            full_name,
-            phone,
-            email,
-            document_url
-          )
-        `);
+  async function loadDashboard() {
+    const { data: bookingsData } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        guests (
+          full_name
+        )
+      `)
+      .order("check_in", { ascending: false });
 
-    const { data: expensesData } =
-      await supabase
-        .from("expenses")
-        .select("*");
-
-    // STEP 3 — fetch guests
-    const { data: guestsData } =
-      await supabase
-        .from("guests")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        });
+    const { data: expensesData } = await supabase
+      .from("expenses")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     setBookings(bookingsData || []);
     setExpenses(expensesData || []);
-    setGuests(guestsData || []); // STEP 3
   }
 
-  const revenue =
-    bookings.reduce(
+  const revenue = bookings.reduce(
+    (sum, booking) => sum + Number(booking.total_amount || 0),
+    0
+  );
+
+  const totalExpenses = expenses.reduce(
+    (sum, expense) => sum + Number(expense.amount || 0),
+    0
+  );
+
+  const profit = revenue - totalExpenses;
+
+  const totalGuests = bookings.reduce(
+    (sum, booking) => sum + Number(booking.guest_count || 1),
+    0
+  );
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const currentBooking =
+    bookings.find(
+      (booking) =>
+        booking.status === "checked_in" ||
+        (booking.check_in <= today &&
+          booking.check_out > today)
+    ) || null;
+
+  const todayRevenue = bookings
+    .filter((booking) => booking.check_in === today)
+    .reduce(
       (sum, booking) =>
         sum + Number(booking.total_amount || 0),
       0
     );
 
-  const totalExpenses =
-    expenses.reduce(
-      (sum, expense) =>
-        sum + Number(expense.amount || 0),
-      0
-    );
-
-  const profit =
-    revenue - totalExpenses;
-
-  const occupancy =
-    bookings.length > 0
-      ? Math.round(
-          (
-            bookings.filter(
-              (b) =>
-                b.status === "confirmed" ||
-                b.status === "checked_in"
-            ).length /
-            bookings.length
-          ) * 100
-        )
-      : 0;
-
-  // STEP 1 — sum guest_count instead of using bookings.length
-  const totalGuests =
-    bookings.reduce(
-      (sum, booking) =>
-        sum + Number(booking.guest_count || 1),
-      0
-    );
-
-  const chartData =
-  bookings.length > 0
-    ? bookings.map((booking, index) => ({
-        month: `B${index + 1}`,
-        revenue: Number(
-          booking.total_amount || 0
-        ),
-      }))
-    : [];
-
   return (
-    <div className="p-10 space-y-8">
-
-      {/* HERO */}
-
-      <div
-        className="
-          rounded-3xl
-          bg-zinc-900
-          p-8
-          text-white
-          shadow-sm
-        "
-      >
-        <h1 className="text-4xl font-semibold tracking-tight">
-          Welcome back to Nest & Nook! 
-        </h1>
-
-        <p className="mt-3 text-zinc-300">
-          Here's what's happening at Nest & Nook today.
-        </p>
-      </div>
-
-      {/* KPI CARDS */}
-
-      <div className="grid gap-6 md:grid-cols-4">
-
-        <Card className="shadow-lg border-0">
-          <CardContent className="p-6">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-muted-foreground">
-                  Total Revenue
-                </p>
-
-                <h2 className="text-4xl font-bold mt-2">
-                  ₹{revenue}
-                </h2>
-
-              </div>
-
-              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
-                <IndianRupee
-                  className="text-[#C6A664]"
-                  size={28}
-                />
-              </div>
-
-            </div>
-
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-0">
-          <CardContent className="p-6">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-muted-foreground">
-                  Bookings
-                </p>
-
-                <h2 className="text-4xl font-bold mt-2">
-                  {bookings.length}
-                </h2>
-
-              </div>
-
-              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
-                <CalendarDays
-                  className="text-[#C6A664]"
-                  size={28}
-                />
-              </div>
-
-            </div>
-
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-0">
-          <CardContent className="p-6">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-muted-foreground">
-                  Profit
-                </p>
-
-                <h2 className="text-4xl font-bold mt-2">
-                  ₹{profit}
-                </h2>
-
-              </div>
-
-              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
-                <TrendingUp
-                  className="text-[#C6A664]"
-                  size={28}
-                />
-              </div>
-
-            </div>
-
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-0">
-          <CardContent className="p-6">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-muted-foreground">
-                  Guests
-                </p>
-
-                {/* STEP 1 — use totalGuests */}
-                <h2 className="text-4xl font-bold mt-2">
-                  {totalGuests}
-                </h2>
-
-              </div>
-
-              <div className="bg-[#F5F1E8] p-4 rounded-2xl">
-                <Users
-                  className="text-[#C6A664]"
-                  size={28}
-                />
-              </div>
-
-            </div>
-
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* CHART + OCCUPANCY */}
-
-      <div className="grid md:grid-cols-3 gap-6">
-
-        <Card className="md:col-span-2 shadow-lg">
-
-          <CardHeader>
-            <CardTitle>
-              Revenue Overview
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-
-            <div className="h-[320px]">
-
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-              >
-
-                <AreaChart data={chartData}>
-
-                  <defs>
-
-                    <linearGradient
-                      id="revenueGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-
-                      <stop
-                        offset="5%"
-                        stopColor="#334155"
-                        stopOpacity={0.5}
-                      />
-
-                      <stop
-                        offset="95%"
-                        stopColor="#334155"
-                        stopOpacity={0}
-                      />
-
-                    </linearGradient>
-
-                  </defs>
-
-                  <XAxis dataKey="month" />
-
-                  <Tooltip />
-
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#334155"
-                    fill="url(#revenueGradient)"
-                  />
-
-                </AreaChart>
-
-              </ResponsiveContainer>
-
-            </div>
-
-          </CardContent>
-
-        </Card>
-
-        <Card className="shadow-lg">
-
-          <CardHeader>
-            <CardTitle>
-              Occupancy
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-
-            <div className="text-center">
-
-              <div className="text-6xl font-bold text-slate-900">
-                {occupancy}%
-              </div>
-
-              <p className="mt-4 text-muted-foreground">
-                Average occupancy rate
-              </p>
-
-            </div>
-
-          </CardContent>
-
-        </Card>
-
-      </div>
-
-      {/* CHECKINS / CHECKOUTS */}
-
-      <div className="grid md:grid-cols-2 gap-6">
-
-        <Card className="shadow-lg">
-
-          <CardHeader>
-            <CardTitle>
-              Upcoming Check-ins
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-
-            {bookings.length === 0 ? (
-              <p className="text-muted-foreground">
-                No upcoming check-ins
-              </p>
-            ) : (
-              bookings.slice(0, 5).map((booking) => (
-
-                <div
-                  key={booking.id}
-                  className="border-b py-4"
-                >
-
-                  <div className="flex justify-between">
-
-                    <div>
-
-                      <p className="font-semibold">
-                        {booking.guests?.full_name ??
-                          "Guest"}
-                      </p>
-
-                      <p className="text-sm text-muted-foreground">
-                        Check-in
-                      </p>
-
-                    </div>
-
-                    <p className="font-medium">
-                      {booking.check_in}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              ))
-            )}
-
-          </CardContent>
-
-        </Card>
-
-        <Card className="shadow-lg">
-
-          <CardHeader>
-            <CardTitle>
-              Upcoming Check-outs
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-
-            {bookings.slice(0, 5).map((booking) => (
-
-              <div
-                key={booking.id}
-                className="border-b py-4"
-              >
-
-                <div className="flex justify-between">
-
-                  <div>
-
-                    <p className="font-semibold">
-                      {booking.guests?.full_name ??
-                        "Guest"}
-                    </p>
-
-                    <p className="text-sm text-muted-foreground">
-                      Check-out
-                    </p>
-
-                  </div>
-
-                  <p className="font-medium">
-                    {booking.check_out}
-                  </p>
-
-                </div>
-
-              </div>
-
-            ))}
-
-          </CardContent>
-
-        </Card>
-
-      </div>
-
-      {/* STEP 2 — Recent Bookings */}
-
-      <Card className="shadow-lg">
-
-        <CardHeader>
-          <CardTitle>
-            Recent Bookings
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-
-          {bookings.slice(0, 5).map((booking) => (
-
-            <div
-              key={booking.id}
-              className="border-b py-4"
-            >
-
-              <div className="flex justify-between">
-
-                <div>
-
-                  <Link
-                    href={`/bookings/${booking.id}`}
-                    className="
-                      font-semibold
-                      hover:text-blue-600
-                      transition
-                    "
-                  >
-                    {booking.guests?.full_name}
-                  </Link>
-
-                  <p className="text-sm text-muted-foreground">
-                    ₹{booking.total_amount}
-                  </p>
-
-                </div>
-
-                <span
-                  className={`
-                    px-3 py-1 rounded-full text-xs
-
-                    ${
-                      booking.status === "confirmed"
-                        ? "bg-green-100 text-green-700"
-                        : booking.status === "checked_in"
-                        ? "bg-blue-100 text-blue-700"
-                        : booking.status === "checked_out"
-                        ? "bg-gray-200 text-gray-700"
-                        : "bg-red-100 text-red-700"
-                    }
-                  `}
-                >
-                  {booking.status}
-                </span>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </CardContent>
-
-      </Card>
-
-      {/* STEP 3 — Recent Guests */}
-
-      <Card className="shadow-lg">
-
-        <CardHeader>
-          <CardTitle>
-            Recent Guests
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-
-          {guests.slice(0, 5).map((guest) => (
-
-            <div
-              key={guest.id}
-              className="border-b py-4"
-            >
-
-              <div className="flex justify-between">
-
-                <div>
-
-                  <Link
-                    href={`/guests/${guest.id}`}
-                    className="
-                      font-semibold
-                      hover:text-blue-600
-                      transition
-                    "
-                  >
-                    {guest.full_name}
-                  </Link>
-
-                  <p className="text-sm text-muted-foreground">
-                    {guest.phone}
-                  </p>
-
-                </div>
-
-                <span>
-
-                  {guest.document_url
-                    ? "📄"
-                    : "—"}
-
-                </span>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </CardContent>
-
-      </Card>
+    <div className="min-h-screen bg-[#F7F8FA] p-8 space-y-8">
+
+      <DashboardHeader />
+
+      <StatsCards
+        revenue={revenue}
+        bookings={bookings.length}
+        guests={totalGuests}
+        profit={profit}
+      />
+
+      <PropertyStatus
+        currentBooking={currentBooking}
+      />
+
+      <UpcomingReservations
+        bookings={bookings}
+      />
+
+      <FinancialSnapshot
+        todayRevenue={todayRevenue}
+        monthRevenue={revenue}
+        expenses={totalExpenses}
+        profit={profit}
+        bookings={bookings.length}
+      />
+
+      <QuickActions />
+
+      <RecentActivity
+        bookings={bookings}
+        expenses={expenses}
+      />
 
     </div>
   );
