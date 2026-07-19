@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import BookingForm from "@/components/bookings/BookingForm";
+import EditBookingDialog from "@/components/bookings/EditBookingDialog";
+import DeleteBookingDialog from "@/components/bookings/DeleteBookingDialog";
 import Link from "next/link";
 import {
   Card,
@@ -40,6 +43,10 @@ export default function BookingsPage() {
   const [dateConflict, setDateConflict] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [editingBooking, setEditingBooking] = useState<any>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deletingBooking, setDeletingBooking] = useState<any>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [invalidDateRange, setInvalidDateRange] = useState(false); // ✅ NEW
 
   async function loadBookings(startDate?: string, endDate?: string) {
@@ -60,6 +67,13 @@ export default function BookingsPage() {
     }
     setBookings(data);
   } 
+
+  // Alias so the Edit/Delete dialogs (and any other consumer) can call a
+  // stable "refresh" function without needing to know the current filter
+  // state directly.
+  async function fetchBookings() {
+    await loadBookings(fromDate, toDate);
+  }
 
   async function checkAvailability(
     startDate: string,
@@ -457,245 +471,37 @@ export default function BookingsPage() {
 
             <CardContent>
 
-              <div className="grid gap-4">
-
-                <h3 className="text-lg font-semibold border-b pb-2">
-                  Guest Information
-                </h3>
-
-                <div className="grid md:grid-cols-2 gap-4">
-
-                  <Input
-                    placeholder="Guest Name"
-                    value={guestName}
-                    onChange={(e) =>
-                      setGuestName(e.target.value)
-                    }
-                  />
-
-                  <Input
-                    placeholder="Phone Number"
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value)
-                    }
-                  />
-
-                  <Input
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) =>
-                      setEmail(e.target.value)
-                    }
-                  />
-
-                  <Input
-                    placeholder="ID Type"
-                    value={idType}
-                    onChange={(e) =>
-                      setIdType(e.target.value)
-                    }
-                  />
-
-                  <Input
-                    placeholder="ID Number"
-                    value={idNumber}
-                    onChange={(e) =>
-                      setIdNumber(e.target.value)
-                    }
-                  />
-
-                  <div>
-
-                    <label className="text-sm font-medium mb-2 block">
-                      Number of Guests
-                    </label>
-
-                    <Input
-                      type="number"
-                      value={guestCount}
-                      onChange={(e) =>
-                        setGuestCount(
-                          Number(e.target.value)
-                        )
-                      }
-                    />
-
-                  </div>
-
-                </div>
-
-                {guestCount > 1 && (
-                  <div>
-                    <label className="block mb-2 font-medium">
-                      Additional Guests
-                    </label>
-                    {Array.from({ length: guestCount - 1 }).map(
-                      (_, index) => (
-                        <input
-                          key={index}
-                          className="border p-2 rounded w-full mb-2"
-                          placeholder={`Guest ${index + 2} Name`}
-                          value={additionalGuests[index] || ""}
-                          onChange={(e) => {
-                            const updated = [...additionalGuests];
-                            updated[index] = e.target.value;
-                            setAdditionalGuests(updated);
-                          }}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-
-                <Textarea
-                  placeholder="Notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-
-                <h3 className="text-lg font-semibold border-b pb-2 mt-4">
-                  Documents
-                </h3>
-
-                <Input
-                  type="file"
-                  multiple
-                  onChange={(e) =>
-                    setDocumentFiles(
-                      Array.from(e.target.files || [])
-                    )
-                  }
-                />
-
-                <h3 className="text-lg font-semibold border-b pb-2 mt-4">
-                  Booking Information
-                </h3>
-
-                <div className="grid md:grid-cols-2 gap-4">
-
-                  <Input
-                    placeholder="Amount"
-                    value={amount}
-                    onChange={(e) =>
-                      setAmount(e.target.value)
-                    }
-                  />
-
-                  <div />
-
-                  <div>
-
-                    <label className="text-sm font-medium mb-2 block">
-                      Check In Date
-                    </label>
-
-                    <Input
-                      type="date"
-                      value={checkIn}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setCheckIn(value);
-                        checkAvailability(value, checkOut);
-                      }}
-                    />
-
-                  </div>
-
-                  <div>
-
-                    <label className="text-sm font-medium mb-2 block">
-                      Check Out Date
-                    </label>
-
-                    <Input
-                      type="date"
-                      value={checkOut}
-                      min={checkIn} // ✅ Prevents picking before check-in
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setCheckOut(value);
-                        checkAvailability(checkIn, value);
-                      }}
-                    />
-
-                  </div>
-
-                </div>
-
-                {checkIn && checkOut && (
-
-                  <div className="mt-3">
-
-                    {/* ✅ Three-way render: invalid range → conflict → available */}
-                    {invalidDateRange ? (
-
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-red-200
-                          bg-red-50
-                          text-red-700
-                          px-4
-                          py-3
-                        "
-                      >
-                        ❌ Check-out date cannot be before check-in date
-                      </div>
-
-                    ) : dateConflict ? (
-
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-red-200
-                          bg-red-50
-                          text-red-700
-                          px-4
-                          py-3
-                        "
-                      >
-                        ❌ Property already booked for selected dates
-                      </div>
-
-                    ) : (
-
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-green-200
-                          bg-green-50
-                          text-green-700
-                          px-4
-                          py-3
-                        "
-                      >
-                        ✅ Dates available
-                      </div>
-
-                    )}
-
-                  </div>
-
-                )}
-
-                <Button
-                  onClick={addBooking}
-                  disabled={dateConflict || invalidDateRange} // ✅
-                  className="w-full"
-                >
-                  {/* ✅ Three-way button label */}
-                  {invalidDateRange
-                    ? "Invalid Dates"
-                    : dateConflict
-                    ? "Dates Unavailable"
-                    : "Save Booking"}
-                </Button>
-
-              </div>
+              <BookingForm
+                guestName={guestName}
+                setGuestName={setGuestName}
+                phone={phone}
+                setPhone={setPhone}
+                email={email}
+                setEmail={setEmail}
+                notes={notes}
+                setNotes={setNotes}
+                idType={idType}
+                setIdType={setIdType}
+                idNumber={idNumber}
+                setIdNumber={setIdNumber}
+                amount={amount}
+                setAmount={setAmount}
+                checkIn={checkIn}
+                setCheckIn={setCheckIn}
+                checkOut={checkOut}
+                setCheckOut={setCheckOut}
+                guestCount={guestCount}
+                setGuestCount={setGuestCount}
+                additionalGuests={additionalGuests}
+                setAdditionalGuests={setAdditionalGuests}
+                documentFiles={documentFiles}
+                setDocumentFiles={setDocumentFiles}
+                dateConflict={dateConflict}
+                invalidDateRange={invalidDateRange}
+                checkAvailability={checkAvailability}
+                submitLabel="Create Booking"
+                onSubmit={addBooking}
+              />
 
             </CardContent>
 
@@ -788,8 +594,11 @@ export default function BookingsPage() {
 
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
           {bookings.map((booking) => (
-            <Link key={booking.id} href={`/bookings/${booking.id}`}>
-              <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <Card
+              key={booking.id}
+              className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+            >
+              <Link href={`/bookings/${booking.id}`}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
@@ -884,11 +693,53 @@ export default function BookingsPage() {
                   </div>
 
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+
+              <CardContent className="px-6 pb-6 pt-0 flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEditingBooking(booking);
+                    setEditOpen(true);
+                  }}
+                >
+                  Edit
+                </Button>
+
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeletingBooking(booking);
+                    setDeleteOpen(true);
+                  }}
+                >
+                  Delete
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
+
+      <EditBookingDialog
+        booking={editingBooking}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onUpdated={fetchBookings}
+      />
+
+      <DeleteBookingDialog
+        booking={deletingBooking}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={fetchBookings}
+      />
     </div>
   );
 }

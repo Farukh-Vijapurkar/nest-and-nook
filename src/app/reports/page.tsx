@@ -19,42 +19,67 @@ import {
   Tooltip,
 } from "recharts";
 
+import {
+  calculateRevenue,
+  calculateExpenses,
+  calculateProfit,
+  calculateBookingCount,
+  calculateAverageDailyRevenue,
+} from "@/lib/reportUtils";
+
 export default function ReportsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   useEffect(() => {
     loadData();
   }, []);
 
   async function loadData() {
-    const { data: bookingData } =
-      await supabase
-        .from("bookings")
-        .select("*");
+    const { data: bookingData } = await supabase
+      .from("bookings")
+      .select("*");
 
-    const { data: expenseData } =
-      await supabase
-        .from("expenses")
-        .select("*");
+    const { data: expenseData } = await supabase
+      .from("expenses")
+      .select("*");
 
     setBookings(bookingData || []);
     setExpenses(expenseData || []);
   }
 
-  const revenue = bookings.reduce(
-    (sum, booking) =>
-      sum + Number(booking.total_amount || 0),
-    0
+  const revenue = calculateRevenue(
+    bookings,
+    fromDate,
+    toDate
   );
 
-  const totalExpenses = expenses.reduce(
-    (sum, expense) =>
-      sum + Number(expense.amount || 0),
-    0
+  const totalExpenses = calculateExpenses(
+    expenses,
+    fromDate,
+    toDate
   );
 
-  const profit = revenue - totalExpenses;
+  const profit = calculateProfit(
+    revenue,
+    totalExpenses
+  );
+
+  const bookingCount = calculateBookingCount(
+    bookings,
+    fromDate,
+    toDate
+  );
+
+  const averageDailyRevenue =
+    calculateAverageDailyRevenue(
+      bookings,
+      fromDate,
+      toDate
+    );
 
   const chartData = [
     {
@@ -84,7 +109,45 @@ export default function ReportsPage() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-6">
+      <Card>
+        <CardContent className="p-6">
+          <div className="grid md:grid-cols-2 gap-6">
+
+            <div>
+              <label className="text-sm font-medium">
+                From Date
+              </label>
+
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) =>
+                  setFromDate(e.target.value)
+                }
+                className="w-full border rounded-lg p-2 mt-2"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">
+                To Date
+              </label>
+
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) =>
+                  setToDate(e.target.value)
+                }
+                className="w-full border rounded-lg p-2 mt-2"
+              />
+            </div>
+
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid md:grid-cols-5 gap-6">
 
         <Card>
           <CardContent className="p-6">
@@ -92,8 +155,8 @@ export default function ReportsPage() {
               Revenue
             </p>
 
-            <h2 className="text-4xl font-bold mt-2">
-              ₹{revenue}
+            <h2 className="text-3xl font-bold mt-2">
+              ₹{revenue.toLocaleString("en-IN")}
             </h2>
           </CardContent>
         </Card>
@@ -104,8 +167,8 @@ export default function ReportsPage() {
               Expenses
             </p>
 
-            <h2 className="text-4xl font-bold mt-2">
-              ₹{totalExpenses}
+            <h2 className="text-3xl font-bold mt-2">
+              ₹{totalExpenses.toLocaleString("en-IN")}
             </h2>
           </CardContent>
         </Card>
@@ -116,8 +179,8 @@ export default function ReportsPage() {
               Profit
             </p>
 
-            <h2 className="text-4xl font-bold mt-2">
-              ₹{profit}
+            <h2 className="text-3xl font-bold mt-2">
+              ₹{profit.toLocaleString("en-IN")}
             </h2>
           </CardContent>
         </Card>
@@ -128,8 +191,20 @@ export default function ReportsPage() {
               Bookings
             </p>
 
-            <h2 className="text-4xl font-bold mt-2">
-              {bookings.length}
+            <h2 className="text-3xl font-bold mt-2">
+              {bookingCount}
+            </h2>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground">
+              Avg Daily Revenue
+            </p>
+
+            <h2 className="text-3xl font-bold mt-2">
+              ₹{averageDailyRevenue.toFixed(0)}
             </h2>
           </CardContent>
         </Card>
@@ -188,19 +263,24 @@ export default function ReportsPage() {
         <CardContent className="space-y-3">
 
           <div>
-            Total Revenue: ₹{revenue}
+            Revenue : ₹{revenue.toLocaleString("en-IN")}
           </div>
 
           <div>
-            Total Expenses: ₹{totalExpenses}
+            Expenses : ₹{totalExpenses.toLocaleString("en-IN")}
           </div>
 
           <div>
-            Net Profit: ₹{profit}
+            Profit : ₹{profit.toLocaleString("en-IN")}
           </div>
 
           <div>
-            Total Bookings: {bookings.length}
+            Bookings : {bookingCount}
+          </div>
+
+          <div>
+            Average Daily Revenue : ₹
+            {averageDailyRevenue.toFixed(2)}
           </div>
 
         </CardContent>
