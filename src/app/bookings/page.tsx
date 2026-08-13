@@ -1,13 +1,14 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import PropertySelector from "@/components/PropertySelector";
+import BookingCard from "@/components/bookings/BookingCard";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import BookingForm from "@/components/bookings/BookingForm";
 import EditBookingDialog from "@/components/bookings/EditBookingDialog";
 import DeleteBookingDialog from "@/components/bookings/DeleteBookingDialog";
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -15,7 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { Badge } from "@/components/ui/badge";
 
 import {
   IndianRupee,
@@ -27,6 +27,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 export default function BookingsPage() {
+  const [propertyId, setPropertyId] = useState("");
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -50,23 +51,42 @@ export default function BookingsPage() {
   const [invalidDateRange, setInvalidDateRange] = useState(false); // ✅ NEW
 
   async function loadBookings(startDate?: string, endDate?: string) {
-    let query = supabase
-      .from("bookings")
-      .select(`*, guests(full_name, phone, email, document_url)`);
+  let query = supabase
+    .from("bookings")
+    .select(`
+      *,
+      guests(
+        full_name,
+        phone,
+        email,
+        document_url
+      ),
+      property:properties(
+        id,
+        name,
+        address
+      )
+    `);
 
-    if (startDate) {
-      query = query.gte("check_in", startDate);}
-    if (endDate) {
-      query = query.lte("check_in", endDate);
-    }
-    const { data, error } = await query.order("check_in", { ascending: false });
+  if (startDate) {
+    query = query.gte("check_in", startDate);
+  }
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-    setBookings(data);
-  } 
+  if (endDate) {
+    query = query.lte("check_in", endDate);
+  }
+
+  const { data, error } = await query.order("check_in", {
+    ascending: false,
+  });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setBookings(data || []);
+} 
 
   // Alias so the Edit/Delete dialogs (and any other consumer) can call a
   // stable "refresh" function without needing to know the current filter
@@ -97,6 +117,7 @@ export default function BookingsPage() {
     const { data } = await supabase
       .from("bookings")
       .select("*")
+      .eq("property_id", propertyId)
       .neq("status", "cancelled");
 
     const overlap = data?.some(
@@ -119,12 +140,17 @@ export default function BookingsPage() {
   }, []);
 
   async function addBooking() {
+    if (!propertyId) {
+      alert("Please select a property / unit.");
+      return;
+    }
     try {
 
             // ✅ Overlap check
       const { data: existingBookings } = await supabase
         .from("bookings")
         .select("*")
+        .eq("property_id", propertyId)
         .neq("status", "cancelled");
 
       const overlap = existingBookings?.some(
@@ -164,17 +190,6 @@ export default function BookingsPage() {
           name: file.name,
           url: data.publicUrl,
         });
-      }
-
-      const { data: property } = await supabase
-        .from("properties")
-        .select("*")
-        .limit(1)
-        .single();
-
-      if (!property) {
-        alert("Property not found");
-        return;
       }
 
       const { data: guest } = await supabase
@@ -218,7 +233,7 @@ export default function BookingsPage() {
 
       const { error } = await supabase.from("bookings").insert([
         {
-          property_id: property.id,
+          property_id: propertyId,
           guest_id: guest.id,
           check_in: checkIn,
           check_out: checkOut,
@@ -472,6 +487,8 @@ export default function BookingsPage() {
             <CardContent>
 
               <BookingForm
+                propertyId={propertyId}
+                setPropertyId={setPropertyId}
                 guestName={guestName}
                 setGuestName={setGuestName}
                 phone={phone}
@@ -590,142 +607,28 @@ export default function BookingsPage() {
       </div>
 
       <div className="mt-10">
-        <h2 className="text-3xl font-bold mb-6">Recent Bookings</h2>
+  <h2 className="text-3xl font-bold mb-6">
+    Recent Bookings
+  </h2>
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {bookings.map((booking) => (
-            <Card
-              key={booking.id}
-              className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-            >
-              <Link href={`/bookings/${booking.id}`}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{booking.guests?.full_name}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {booking.guest_count || 1} Guest(s)
-                      </p>
-                    </div>
-                    <Badge
-                      className={
-                        booking.status === "confirmed"
-                          ? "bg-green-100 text-green-700"
-                          : booking.status === "checked_in"
-                          ? "bg-blue-100 text-blue-700"
-                          : booking.status === "checked_out"
-                          ? "bg-gray-200 text-gray-700"
-                          : "bg-red-100 text-red-700"
-                      }
-                    >
-                      {booking.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-
-                <CardContent>
-
-                  <div className="flex items-center gap-3 mb-4">
-
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserCircle2 className="h-5 w-5" />
-                    </div>
-
-                    <div>
-
-                      <p className="font-semibold">
-                        {booking.guests?.full_name}
-                      </p>
-
-                      <p className="text-xs text-muted-foreground">
-                        Booking Guest
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <div className="space-y-3">
-
-                    <div className="flex items-center gap-2">
-
-                      <Users className="h-4 w-4 text-muted-foreground" />
-
-                      <span>
-                        {booking.guest_count || 1} Guest(s)
-                      </span>
-
-                    </div>
-
-                    <div className="flex items-center gap-2">
-
-                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
-
-                      <span>
-                        {booking.check_in}
-                      </span>
-
-                    </div>
-
-                    <div className="flex items-center gap-2">
-
-                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
-
-                      <span>
-                        {booking.check_out}
-                      </span>
-
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-3 border-t">
-
-                      <IndianRupee className="h-4 w-4" />
-
-                      <span className="font-bold text-lg">
-                        {Number(booking.total_amount || 0).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-
-                    </div>
-
-                  </div>
-
-                </CardContent>
-              </Link>
-
-              <CardContent className="px-6 pb-6 pt-0 flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setEditingBooking(booking);
-                    setEditOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDeletingBooking(booking);
-                    setDeleteOpen(true);
-                  }}
-                >
-                  Delete
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+  <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+    {bookings.map((booking) => (
+      <BookingCard
+        key={booking.id}
+        booking={booking}
+        propertyName={booking.property?.name}
+        onEdit={(selectedBooking) => {
+          setEditingBooking(selectedBooking);
+          setEditOpen(true);
+        }}
+        onDelete={(selectedBooking) => {
+          setDeletingBooking(selectedBooking);
+          setDeleteOpen(true);
+        }}
+      />
+    ))}
+  </div>
+</div>
 
       <EditBookingDialog
         booking={editingBooking}

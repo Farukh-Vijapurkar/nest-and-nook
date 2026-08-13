@@ -4,8 +4,12 @@ import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import PropertySelector from "@/components/PropertySelector";
 
 interface BookingFormProps {
+  propertyId: string;
+  setPropertyId: (v: string) => void;
+
   guestName: string;
   setGuestName: (v: string) => void;
 
@@ -56,6 +60,9 @@ interface BookingFormProps {
 }
 
 export default function BookingForm({
+  propertyId,
+  setPropertyId,
+
   guestName,
   setGuestName,
 
@@ -109,6 +116,11 @@ export default function BookingForm({
 
   return (
     <div className="grid gap-5">
+
+      <PropertySelector
+        value={propertyId}
+        onChange={setPropertyId}  
+      />
 
       <h3 className="text-lg font-semibold border-b pb-2">
         Guest Information

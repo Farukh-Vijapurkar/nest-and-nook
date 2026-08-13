@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+import {
+  getBookingRevenueForDate,
+  getBookingRevenueForDateRange,
+} from "@/lib/bookingRevenue";
+
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import PropertySelector from "@/components/PropertySelector";
 import StatsCards from "@/components/dashboard/StatsCards";
 import PropertyStatus from "@/components/dashboard/PropertyStatus";
 import UpcomingReservations from "@/components/dashboard/UpcomingReservations";
@@ -15,62 +21,254 @@ export default function Home() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
 
+  // "all" means all properties / units
+  const [selectedPropertyId, setSelectedPropertyId] =
+    useState("all");
+
   useEffect(() => {
-    loadDashboard();
+    void loadDashboard();
   }, []);
 
   async function loadDashboard() {
-    const { data: bookingsData } = await supabase
+    const {
+      data: bookingsData,
+      error: bookingsError,
+    } = await supabase
       .from("bookings")
       .select(`
         *,
         guests (
           full_name
+        ),
+        property:properties (
+          id,
+          name,
+          address
         )
       `)
-      .order("check_in", { ascending: false });
+      .order("check_in", {
+        ascending: false,
+      });
 
-    const { data: expensesData } = await supabase
+    if (bookingsError) {
+      console.error(
+        "Error loading bookings:",
+        bookingsError
+      );
+    }
+
+    const {
+      data: expensesData,
+      error: expensesError,
+    } = await supabase
       .from("expenses")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (expensesError) {
+      console.error(
+        "Error loading expenses:",
+        expensesError
+      );
+    }
 
     setBookings(bookingsData || []);
     setExpenses(expensesData || []);
   }
 
-  const revenue = bookings.reduce(
-    (sum, booking) => sum + Number(booking.total_amount || 0),
+  /*
+   * Filter bookings based on selected property/unit.
+   *
+   * "all" = all units
+   * otherwise = selected unit only
+   */
+  const filteredBookings =
+    selectedPropertyId === "all"
+      ? bookings
+      : bookings.filter(
+          (booking) =>
+            booking.property_id ===
+            selectedPropertyId
+        );
+
+  /*
+   * Filter expenses based on selected property/unit.
+   */
+  const filteredExpenses =
+    selectedPropertyId === "all"
+      ? expenses
+      : expenses.filter(
+          (expense) =>
+            expense.property_id ===
+            selectedPropertyId
+        );
+
+  /*
+   * Total booking revenue.
+   *
+   * This represents the complete revenue
+   * of the filtered bookings.
+   */
+  const revenue = filteredBookings.reduce(
+    (sum, booking) =>
+      sum +
+      Number(booking.total_amount || 0),
     0
   );
 
-  const totalExpenses = expenses.reduce(
-    (sum, expense) => sum + Number(expense.amount || 0),
-    0
-  );
+  /*
+   * Total expenses for selected unit(s).
+   */
+  const totalExpenses =
+    filteredExpenses.reduce(
+      (sum, expense) =>
+        sum +
+        Number(expense.amount || 0),
+      0
+    );
 
-  const profit = revenue - totalExpenses;
+  /*
+   * Total profit.
+   */
+  const profit =
+    revenue - totalExpenses;
 
-  const totalGuests = bookings.reduce(
-    (sum, booking) => sum + Number(booking.guest_count || 1),
-    0
-  );
+  /*
+   * Total guests.
+   */
+  const totalGuests =
+    filteredBookings.reduce(
+      (sum, booking) =>
+        sum +
+        Number(
+          booking.guest_count || 1
+        ),
+      0
+    );
 
-  const today = new Date().toISOString().split("T")[0];
+  /*
+   * Today's date.
+   */
+  const today =
+    new Date()
+      .toISOString()
+      .split("T")[0];
 
+  /*
+   * Current booking for selected unit(s).
+   */
   const currentBooking =
-    bookings.find(
+    filteredBookings.find(
       (booking) =>
-        booking.status === "checked_in" ||
+        booking.status ===
+          "checked_in" ||
         (booking.check_in <= today &&
           booking.check_out > today)
     ) || null;
 
-  const todayRevenue = bookings
-    .filter((booking) => booking.check_in === today)
-    .reduce(
+  /*
+   * Today's revenue.
+   *
+   * This uses the nightly allocation.
+   *
+   * Example:
+   *
+   * Booking:
+   * Aug 1 → Aug 9
+   * ₹9,000
+   *
+   * 8 nights
+   * ₹1,125 per night
+   *
+   * If today is Aug 5:
+   * today's revenue = ₹1,125
+   */
+  const todayRevenue =
+    filteredBookings.reduce(
       (sum, booking) =>
-        sum + Number(booking.total_amount || 0),
+        sum +
+        getBookingRevenueForDate(
+          booking,
+          today
+        ),
+      0
+    );
+
+  /*
+   * Current month boundaries.
+   *
+   * Example:
+   *
+   * August:
+   * start = Aug 1
+   * end   = Sep 1
+   *
+   * The end date is exclusive.
+   */
+  const currentDate = new Date();
+
+  const monthStart = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    1
+  );
+
+  const nextMonthStart = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth() + 1,
+    1
+  );
+
+  const monthStartString =
+    monthStart
+      .toISOString()
+      .split("T")[0];
+
+  const monthEndString =
+    nextMonthStart
+      .toISOString()
+      .split("T")[0];
+
+  /*
+   * Revenue earned during the current month.
+   *
+   * IMPORTANT:
+   *
+   * This is different from "revenue".
+   *
+   * revenue =
+   * complete booking revenue
+   *
+   * monthRevenue =
+   * only the portion of booking revenue
+   * earned during the current month.
+   *
+   * Example:
+   *
+   * Aug 28 → Sep 3
+   * ₹6,000 total
+   * 6 nights
+   * ₹1,000/night
+   *
+   * August:
+   * 4 nights × ₹1,000
+   * = ₹4,000
+   *
+   * September:
+   * 2 nights × ₹1,000
+   * = ₹2,000
+   */
+  const monthRevenue =
+    filteredBookings.reduce(
+      (sum, booking) =>
+        sum +
+        getBookingRevenueForDateRange(
+          booking,
+          monthStartString,
+          monthEndString
+        ),
       0
     );
 
@@ -79,34 +277,59 @@ export default function Home() {
 
       <DashboardHeader />
 
+      {/* Property / Unit Filter */}
+
+      <div className="flex items-end gap-4">
+        <div className="w-full max-w-sm">
+          <PropertySelector
+            value={selectedPropertyId}
+            onChange={setSelectedPropertyId}
+            includeAll
+            label="Property / Unit"
+          />
+        </div>
+      </div>
+
+      {/* Dashboard Statistics */}
+
       <StatsCards
         revenue={revenue}
-        bookings={bookings.length}
+        bookings={filteredBookings.length}
         guests={totalGuests}
         profit={profit}
       />
+
+      {/* Current Property Status */}
 
       <PropertyStatus
         currentBooking={currentBooking}
       />
 
+      {/* Upcoming Reservations */}
+
       <UpcomingReservations
-        bookings={bookings}
+        bookings={filteredBookings}
       />
+
+      {/* Financial Snapshot */}
 
       <FinancialSnapshot
         todayRevenue={todayRevenue}
-        monthRevenue={revenue}
+        monthRevenue={monthRevenue}
         expenses={totalExpenses}
         profit={profit}
-        bookings={bookings.length}
+        bookings={filteredBookings.length}
       />
+
+      {/* Quick Actions */}
 
       <QuickActions />
 
+      {/* Recent Activity */}
+
       <RecentActivity
-        bookings={bookings}
-        expenses={expenses}
+        bookings={filteredBookings}
+        expenses={filteredExpenses}
       />
 
     </div>
