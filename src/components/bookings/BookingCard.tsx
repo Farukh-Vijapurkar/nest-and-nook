@@ -34,7 +34,8 @@ export default function BookingCard({
   onEdit,
   onDelete,
 }: BookingCardProps) {
-  const status = booking.status || "confirmed";
+  const status =
+    booking.status || "confirmed";
 
   const statusLabel =
     status === "checked_in"
@@ -62,6 +63,29 @@ export default function BookingCard({
     booking.total_amount || 0
   );
 
+  /*
+   * Guest information comes from the
+   * Supabase "guests" relationship.
+   *
+   * bookings/page.tsx loads:
+   *
+   * guests (
+   *   full_name,
+   *   phone,
+   *   email,
+   *   document_url
+   * )
+   *
+   * Therefore we use:
+   * booking.guests.full_name
+   */
+
+  const guestName =
+    booking.guests?.full_name ||
+    booking.guest?.name ||
+    booking.guest_name ||
+    "Guest";
+
   return (
     <Card className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
 
@@ -72,12 +96,11 @@ export default function BookingCard({
           <div className="min-w-0">
 
             <CardTitle className="truncate text-lg">
-              {booking.guest?.name ||
-                booking.guest_name ||
-                "Guest"}
+              {guestName}
             </CardTitle>
 
             <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+
               <Users className="h-4 w-4" />
 
               <span>
@@ -86,6 +109,7 @@ export default function BookingCard({
                   ? "Guest"
                   : "Guests"}
               </span>
+
             </div>
 
           </div>
@@ -107,7 +131,9 @@ export default function BookingCard({
         <div className="flex items-center gap-3 rounded-xl bg-muted/40 p-3">
 
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm">
+
             <Home className="h-4 w-4" />
+
           </div>
 
           <div className="min-w-0">
@@ -133,8 +159,11 @@ export default function BookingCard({
           <div className="rounded-xl bg-muted/40 p-3">
 
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+
               <CalendarDays className="h-3.5 w-3.5" />
+
               Check In
+
             </div>
 
             <p className="text-sm font-semibold">
@@ -146,8 +175,11 @@ export default function BookingCard({
           <div className="rounded-xl bg-muted/40 p-3">
 
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+
               <CalendarDays className="h-3.5 w-3.5" />
+
               Check Out
+
             </div>
 
             <p className="text-sm font-semibold">
@@ -163,12 +195,17 @@ export default function BookingCard({
         <div className="flex items-center justify-between rounded-xl border p-3">
 
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+
             <IndianRupee className="h-4 w-4" />
 
-            <span>Total Amount</span>
+            <span>
+              Total Amount
+            </span>
+
           </div>
 
           <p className="text-lg font-bold">
+
             ₹
             {amount.toLocaleString(
               "en-IN",
@@ -177,6 +214,7 @@ export default function BookingCard({
                 maximumFractionDigits: 2,
               }
             )}
+
           </p>
 
         </div>
@@ -190,11 +228,13 @@ export default function BookingCard({
             variant="outline"
             className="flex-1"
           >
+
             <Link
               href={`/bookings/${booking.id}`}
             >
               View
             </Link>
+
           </Button>
 
           <Button
@@ -205,7 +245,9 @@ export default function BookingCard({
               onEdit(booking)
             }
           >
+
             <Pencil className="h-4 w-4" />
+
           </Button>
 
           <Button
@@ -216,7 +258,9 @@ export default function BookingCard({
               onDelete(booking)
             }
           >
+
             <Trash2 className="h-4 w-4" />
+
           </Button>
 
         </div>
