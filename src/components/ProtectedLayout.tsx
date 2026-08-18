@@ -17,12 +17,20 @@ export default function ProtectedLayout({
 
   return (
     <AuthGuard>
-      <div className="min-h-screen flex">
+      <div className="min-h-screen">
+
         <Sidebar />
 
-        <main className="flex-1">
+        {/* Main Application Area */}
+        <main
+          className="
+            min-h-screen
+            lg:ml-72
+          "
+        >
           {children}
         </main>
+
       </div>
     </AuthGuard>
   );

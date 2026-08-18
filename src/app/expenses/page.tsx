@@ -1,38 +1,131 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 import PropertySelector from "@/components/PropertySelector";
 
+interface Expense {
+  id: string;
+  property_id: string;
+  category: string;
+  amount: number;
+  expense_date: string;
+  created_at?: string;
+  property?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+}
+
 export default function ExpensesPage() {
+  /* =========================================================
+     FORM STATE
+  ========================================================= */
+
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
 
-  const [selectedPropertyId, setSelectedPropertyId] =
-    useState("");
+  const [expenseDate, setExpenseDate] =
+    useState(
+      new Date()
+        .toISOString()
+        .split("T")[0]
+    );
 
-  const [properties, setProperties] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [
+    selectedPropertyId,
+    setSelectedPropertyId,
+  ] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [loadingProperties, setLoadingProperties] =
-    useState(true);
+  /* =========================================================
+     DATA
+  ========================================================= */
+
+  const [properties, setProperties] =
+    useState<any[]>([]);
+
+  const [expenses, setExpenses] =
+    useState<Expense[]>([]);
 
   /*
-   * Load properties and expenses
+   * This selector controls which expenses
+   * are displayed in the list.
+   *
+   * "all" = all properties
    */
+  const [
+    filterPropertyId,
+    setFilterPropertyId,
+  ] = useState("all");
+
+  /* =========================================================
+     EDIT STATE
+  ========================================================= */
+
+  const [
+    editingExpense,
+    setEditingExpense,
+  ] = useState<Expense | null>(null);
+
+  const [
+    editCategory,
+    setEditCategory,
+  ] = useState("");
+
+  const [
+    editAmount,
+    setEditAmount,
+  ] = useState("");
+
+  const [
+    editExpenseDate,
+    setEditExpenseDate,
+  ] = useState("");
+
+  const [
+    editPropertyId,
+    setEditPropertyId,
+  ] = useState("");
+
+  /* =========================================================
+     LOADING STATES
+  ========================================================= */
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    loadingProperties,
+    setLoadingProperties,
+  ] = useState(true);
+
+  const [
+    loadingExpenses,
+    setLoadingExpenses,
+  ] = useState(true);
+
+  const [
+    deletingId,
+    setDeletingId,
+  ] = useState<string | null>(null);
+
+  /* =========================================================
+     INITIAL LOAD
+  ========================================================= */
+
   useEffect(() => {
     void loadProperties();
     void loadExpenses();
   }, []);
 
-  /*
-   * Load all properties / units
-   */
+  /* =========================================================
+     LOAD PROPERTIES
+  ========================================================= */
+
   async function loadProperties() {
     setLoadingProperties(true);
 
@@ -45,16 +138,6 @@ export default function ExpensesPage() {
       .order("created_at", {
         ascending: true,
       });
-
-    console.log(
-      "Properties:",
-      data
-    );
-
-    console.log(
-      "Properties Error:",
-      error
-    );
 
     if (error) {
       console.error(
@@ -77,7 +160,7 @@ export default function ExpensesPage() {
 
     /*
      * Automatically select the first
-     * property if nothing is selected.
+     * property for the Add Expense form.
      */
     if (
       propertyList.length > 0 &&
@@ -91,13 +174,13 @@ export default function ExpensesPage() {
     setLoadingProperties(false);
   }
 
-  /*
-   * Load expenses.
-   *
-   * We also load the related property
-   * so the unit name can be displayed.
-   */
+  /* =========================================================
+     LOAD EXPENSES
+  ========================================================= */
+
   async function loadExpenses() {
+    setLoadingExpenses(true);
+
     const {
       data,
       error,
@@ -111,17 +194,17 @@ export default function ExpensesPage() {
           address
         )
       `)
-      .order("created_at", {
+      .order("expense_date", {
         ascending: false,
       });
 
     console.log(
-      "Load Expenses:",
+      "Expenses:",
       data
     );
 
     console.log(
-      "Load Expenses Error:",
+      "Expenses Error:",
       error
     );
 
@@ -131,19 +214,72 @@ export default function ExpensesPage() {
         error
       );
 
+      setLoadingExpenses(false);
       return;
     }
 
-    setExpenses(data || []);
+    setExpenses(
+      (data || []) as Expense[]
+    );
+
+    setLoadingExpenses(false);
   }
 
-  /*
-   * Save expense
-   */
+  /* =========================================================
+     SELECTED PROPERTY
+  ========================================================= */
+
+  const selectedProperty =
+    properties.find(
+      (property) =>
+        property.id ===
+        selectedPropertyId
+    );
+
+  /* =========================================================
+     FILTERED EXPENSES
+  ========================================================= */
+
+  const filteredExpenses =
+    useMemo(() => {
+      if (
+        filterPropertyId ===
+        "all"
+      ) {
+        return expenses;
+      }
+
+      return expenses.filter(
+        (expense) =>
+          expense.property_id ===
+          filterPropertyId
+      );
+    }, [
+      expenses,
+      filterPropertyId,
+    ]);
+
+  /* =========================================================
+     TOTAL EXPENSES
+  ========================================================= */
+
+  const totalExpenses =
+    useMemo(() => {
+      return filteredExpenses.reduce(
+        (sum, expense) =>
+          sum +
+          Number(
+            expense.amount || 0
+          ),
+        0
+      );
+    }, [filteredExpenses]);
+
+  /* =========================================================
+     SAVE NEW EXPENSE
+  ========================================================= */
+
   async function saveExpense() {
-    /*
-     * Basic validation
-     */
     if (!selectedPropertyId) {
       alert(
         "Please select a property / unit."
@@ -158,7 +294,10 @@ export default function ExpensesPage() {
       return;
     }
 
-    if (!amount || Number(amount) <= 0) {
+    if (
+      !amount ||
+      Number(amount) <= 0
+    ) {
       alert(
         "Please enter a valid expense amount."
       );
@@ -205,17 +344,12 @@ export default function ExpensesPage() {
         `)
         .single();
 
-      console.log(
-        "Expense Data:",
-        data
-      );
-
-      console.log(
-        "Expense Error:",
-        error
-      );
-
       if (error) {
+        console.error(
+          "Save expense error:",
+          error
+        );
+
         alert(
           "Expense could not be saved:\n" +
             error.message
@@ -224,12 +358,13 @@ export default function ExpensesPage() {
         return;
       }
 
-      alert(
-        "Expense Saved Successfully"
+      console.log(
+        "Expense saved:",
+        data
       );
 
       /*
-       * Reset form
+       * Reset form.
        */
       setCategory("");
       setAmount("");
@@ -241,241 +376,986 @@ export default function ExpensesPage() {
       );
 
       /*
-       * Reload expense list
+       * Refresh list.
        */
       await loadExpenses();
 
-    } catch (err) {
+    } catch (error) {
       console.error(
         "Unexpected error:",
-        err
+        error
       );
 
       alert(
-        "Unexpected Error"
+        "Unexpected error while saving expense."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  /*
-   * Selected property name
-   */
-  const selectedProperty =
-    properties.find(
-      (property) =>
-        property.id ===
-        selectedPropertyId
+  /* =========================================================
+     OPEN EDIT DIALOG
+  ========================================================= */
+
+  function openEditExpense(
+    expense: Expense
+  ) {
+    setEditingExpense(
+      expense
     );
 
+    setEditCategory(
+      expense.category || ""
+    );
+
+    setEditAmount(
+      String(
+        expense.amount ?? ""
+      )
+    );
+
+    setEditExpenseDate(
+      expense.expense_date || ""
+    );
+
+    setEditPropertyId(
+      expense.property_id || ""
+    );
+  }
+
+  /* =========================================================
+     UPDATE EXPENSE
+  ========================================================= */
+
+  async function updateExpense() {
+    if (!editingExpense) {
+      return;
+    }
+
+    if (!editPropertyId) {
+      alert(
+        "Please select a property / unit."
+      );
+      return;
+    }
+
+    if (!editCategory.trim()) {
+      alert(
+        "Please enter an expense category."
+      );
+      return;
+    }
+
+    if (
+      !editAmount ||
+      Number(editAmount) <= 0
+    ) {
+      alert(
+        "Please enter a valid expense amount."
+      );
+      return;
+    }
+
+    if (!editExpenseDate) {
+      alert(
+        "Please select an expense date."
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const {
+        error,
+      } = await supabase
+        .from("expenses")
+        .update({
+          property_id:
+            editPropertyId,
+
+          category:
+            editCategory.trim(),
+
+          amount:
+            Number(editAmount),
+
+          expense_date:
+            editExpenseDate,
+        })
+        .eq(
+          "id",
+          editingExpense.id
+        );
+
+      if (error) {
+        console.error(
+          "Update expense error:",
+          error
+        );
+
+        alert(
+          "Expense could not be updated:\n" +
+            error.message
+        );
+
+        return;
+      }
+
+      /*
+       * Close edit dialog.
+       */
+      setEditingExpense(
+        null
+      );
+
+      /*
+       * Refresh data.
+       */
+      await loadExpenses();
+
+    } catch (error) {
+      console.error(
+        "Unexpected update error:",
+        error
+      );
+
+      alert(
+        "Unexpected error while updating expense."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* =========================================================
+     DELETE EXPENSE
+  ========================================================= */
+
+  async function deleteExpense(
+    expense: Expense
+  ) {
+    const confirmed =
+      window.confirm(
+        `Delete this expense?\n\n${expense.category} - ₹${Number(
+          expense.amount || 0
+        ).toLocaleString("en-IN")}`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(
+        expense.id
+      );
+
+      const {
+        error,
+      } = await supabase
+        .from("expenses")
+        .delete()
+        .eq(
+          "id",
+          expense.id
+        );
+
+      if (error) {
+        console.error(
+          "Delete expense error:",
+          error
+        );
+
+        alert(
+          "Expense could not be deleted:\n" +
+            error.message
+        );
+
+        return;
+      }
+
+      await loadExpenses();
+
+    } catch (error) {
+      console.error(
+        "Unexpected delete error:",
+        error
+      );
+
+      alert(
+        "Unexpected error while deleting expense."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  /* =========================================================
+     FORMAT CURRENCY
+  ========================================================= */
+
+  function formatCurrency(
+    value: number
+  ) {
+    return `₹${Number(
+      value || 0
+    ).toLocaleString(
+      "en-IN"
+    )}`;
+  }
+
+  /* =========================================================
+     FORMAT DATE
+  ========================================================= */
+
+  function formatDate(
+    value: string
+  ) {
+    if (!value) {
+      return "-";
+    }
+
+    return new Date(
+      value
+    ).toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  }
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
 
-      {/* Page Header */}
+      <div className="max-w-7xl mx-auto">
 
-      <h1 className="text-3xl font-bold mb-6">
-        Expenses
-      </h1>
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
 
-      {/* Expense Form */}
+        <div className="mb-8">
 
-      <div className="max-w-md space-y-4">
+          <h1 className="text-3xl font-bold text-slate-900">
+            Expenses
+          </h1>
 
-        {/* Property / Unit */}
+          <p className="text-slate-500 mt-1">
+            Track expenses across all your properties
+          </p>
 
-        <PropertySelector
-          value={selectedPropertyId}
-          onChange={
-            setSelectedPropertyId
-          }
-          includeAll={false}
-          label="Property / Unit"
-        />
-
-        {/* Category */}
-
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Expense Category
-          </label>
-
-          <input
-            className="border p-2 rounded w-full"
-            placeholder="Example: Maid, Cleaning, Electricity"
-            value={category}
-            onChange={(e) =>
-              setCategory(
-                e.target.value
-              )
-            }
-          />
         </div>
 
-        {/* Amount */}
+        {/* =====================================================
+            TOP STAT
+        ===================================================== */}
 
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Amount
-          </label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
 
-          <input
-            className="border p-2 rounded w-full"
-            placeholder="Amount"
-            type="number"
-            min="0"
-            value={amount}
-            onChange={(e) =>
-              setAmount(
-                e.target.value
-              )
-            }
-          />
-        </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
 
-        {/* Expense Date */}
+            <p className="text-sm text-slate-500">
+              Total Expenses
+            </p>
 
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Expense Date
-          </label>
+            <p className="text-3xl font-bold text-slate-900 mt-2">
+              {formatCurrency(
+                totalExpenses
+              )}
+            </p>
 
-          <input
-            className="border p-2 rounded w-full"
-            type="date"
-            value={expenseDate}
-            onChange={(e) =>
-              setExpenseDate(
-                e.target.value
-              )
-            }
-          />
-        </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Based on selected unit
+            </p>
 
-        {/* Selected Unit Preview */}
-
-        {selectedProperty && (
-          <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-            <span className="text-muted-foreground">
-              Expense will be recorded for:
-            </span>
-
-            <div className="font-semibold mt-1">
-              {selectedProperty.name}
-            </div>
           </div>
-        )}
 
-        {/* Save */}
 
-        <button
-          onClick={saveExpense}
-          disabled={
-            loading ||
-            loadingProperties ||
-            !selectedPropertyId
-          }
-          className="bg-black text-white p-2 rounded w-full disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading
-            ? "Saving..."
-            : "Save Expense"}
-        </button>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
 
-      </div>
+            <p className="text-sm text-slate-500">
+              Expense Entries
+            </p>
 
-      {/* Expense List */}
+            <p className="text-3xl font-bold text-slate-900 mt-2">
+              {filteredExpenses.length}
+            </p>
 
-      <div className="mt-10">
+            <p className="text-xs text-slate-400 mt-1">
+              Recorded expenses
+            </p>
 
-        <h2 className="text-2xl font-bold mb-4">
-          Expense List
-        </h2>
+          </div>
 
-        <div className="overflow-x-auto">
 
-          <table className="border-collapse border w-full">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
 
-            <thead>
-              <tr>
+            <p className="text-sm text-slate-500">
+              Current View
+            </p>
 
-                <th className="border p-2 text-left">
-                  Property / Unit
-                </th>
+            <p className="text-lg font-bold text-slate-900 mt-2 truncate">
+              {filterPropertyId ===
+              "all"
+                ? "All Units"
+                : properties.find(
+                    (property) =>
+                      property.id ===
+                      filterPropertyId
+                  )?.name ||
+                  "Selected Unit"}
+            </p>
 
-                <th className="border p-2 text-left">
-                  Category
-                </th>
+            <p className="text-xs text-slate-400 mt-1">
+              Expense filter
+            </p>
 
-                <th className="border p-2 text-left">
-                  Amount
-                </th>
+          </div>
 
-                <th className="border p-2 text-left">
-                  Date
-                </th>
+        </div>
 
-              </tr>
-            </thead>
 
-            <tbody>
+        {/* =====================================================
+            ADD EXPENSE
+        ===================================================== */}
 
-              {expenses.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="border p-6 text-center text-muted-foreground"
-                  >
-                    No expenses found.
-                  </td>
-                </tr>
-              ) : (
-                expenses.map(
-                  (expense) => (
-                    <tr
-                      key={
-                        expense.id
-                      }
-                    >
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 mb-8">
 
-                      <td className="border p-2">
+          <div className="mb-6">
+
+            <h2 className="text-xl font-bold text-slate-900">
+              Add Expense
+            </h2>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Record a new expense for a specific property
+            </p>
+
+          </div>
+
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            {/* PROPERTY */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Property / Unit
+              </label>
+
+              <PropertySelector
+                value={
+                  selectedPropertyId
+                }
+                onChange={
+                  setSelectedPropertyId
+                }
+                includeAll={false}
+                label="Property / Unit"
+              />
+
+            </div>
+
+
+            {/* CATEGORY */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Category
+              </label>
+
+              <input
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-200"
+                placeholder="Cleaning, Maid, Electricity..."
+                value={category}
+                onChange={(e) =>
+                  setCategory(
+                    e.target.value
+                  )
+                }
+              />
+
+            </div>
+
+
+            {/* AMOUNT */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Amount
+              </label>
+
+              <input
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-200"
+                type="number"
+                min="0"
+                placeholder="₹ Amount"
+                value={amount}
+                onChange={(e) =>
+                  setAmount(
+                    e.target.value
+                  )
+                }
+              />
+
+            </div>
+
+
+            {/* DATE */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Expense Date
+              </label>
+
+              <input
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-slate-200"
+                type="date"
+                value={
+                  expenseDate
+                }
+                onChange={(e) =>
+                  setExpenseDate(
+                    e.target.value
+                  )
+                }
+              />
+
+            </div>
+
+          </div>
+
+
+          {/* SELECTED PROPERTY */}
+
+          {selectedProperty && (
+
+            <div className="mt-5 flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+
+              <div>
+
+                <p className="text-xs text-slate-400">
+                  Recording expense for
+                </p>
+
+                <p className="font-semibold text-slate-800 mt-1">
+                  {selectedProperty.name}
+                </p>
+
+              </div>
+
+              <span className="text-xl">
+                🏠
+              </span>
+
+            </div>
+
+          )}
+
+
+          <div className="flex justify-end mt-5">
+
+            <button
+              onClick={
+                saveExpense
+              }
+              disabled={
+                loading ||
+                loadingProperties ||
+                !selectedPropertyId
+              }
+              className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading
+                ? "Saving..."
+                : "Save Expense"}
+            </button>
+
+          </div>
+
+        </div>
+
+
+        {/* =====================================================
+            FILTER
+        ===================================================== */}
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-5">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+            <div>
+
+              <h2 className="text-lg font-bold text-slate-900">
+                Expense History
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                View and manage recorded expenses
+              </p>
+
+            </div>
+
+
+            <div className="w-full md:w-72">
+
+              <PropertySelector
+                value={
+                  filterPropertyId
+                }
+                onChange={
+                  setFilterPropertyId
+                }
+                includeAll
+                label="Filter by Property / Unit"
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* =====================================================
+            EXPENSE TABLE
+        ===================================================== */}
+
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+
+          {/* DESKTOP HEADER */}
+
+          <div className="hidden md:grid grid-cols-[1.8fr_1.4fr_1fr_1.2fr_120px] gap-4 px-6 py-4 bg-slate-50 border-b text-xs font-semibold uppercase tracking-wide text-slate-500">
+
+            <div>Property / Unit</div>
+
+            <div>Category</div>
+
+            <div>Amount</div>
+
+            <div>Date</div>
+
+            <div className="text-right">
+              Actions
+            </div>
+
+          </div>
+
+
+          {/* LOADING */}
+
+          {loadingExpenses && (
+
+            <div className="p-12 text-center text-slate-500">
+              Loading expenses...
+            </div>
+
+          )}
+
+
+          {/* EMPTY */}
+
+          {!loadingExpenses &&
+            filteredExpenses.length ===
+              0 && (
+
+              <div className="p-12 text-center">
+
+                <div className="text-4xl mb-3">
+                  💰
+                </div>
+
+                <p className="font-medium text-slate-700">
+                  No expenses found
+                </p>
+
+                <p className="text-sm text-slate-400 mt-1">
+                  Add an expense or change the property filter
+                </p>
+
+              </div>
+
+            )}
+
+
+          {/* EXPENSE ROWS */}
+
+          {!loadingExpenses &&
+            filteredExpenses.map(
+              (expense) => (
+
+                <div
+                  key={expense.id}
+                  className="border-b last:border-b-0 hover:bg-slate-50 transition"
+                >
+
+                  {/* DESKTOP */}
+
+                  <div className="hidden md:grid grid-cols-[1.8fr_1.4fr_1fr_1.2fr_120px] gap-4 px-6 py-5 items-center">
+
+                    <div>
+
+                      <p className="font-semibold text-slate-800">
                         {expense.property
                           ?.name ||
                           "Unknown Property"}
-                      </td>
+                      </p>
 
-                      <td className="border p-2">
+                    </div>
+
+
+                    <div>
+
+                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">
                         {expense.category}
-                      </td>
+                      </span>
 
-                      <td className="border p-2">
-                        ₹
-                        {Number(
-                          expense.amount ||
-                            0
-                        ).toLocaleString(
-                          "en-IN"
+                    </div>
+
+
+                    <div>
+
+                      <p className="font-semibold text-slate-900">
+                        {formatCurrency(
+                          Number(
+                            expense.amount ||
+                              0
+                          )
                         )}
-                      </td>
+                      </p>
 
-                      <td className="border p-2">
-                        {
+                    </div>
+
+
+                    <div>
+
+                      <p className="text-sm text-slate-700">
+                        {formatDate(
                           expense.expense_date
+                        )}
+                      </p>
+
+                    </div>
+
+
+                    <div className="flex justify-end gap-2">
+
+                      <button
+                        onClick={() =>
+                          openEditExpense(
+                            expense
+                          )
                         }
-                      </td>
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium hover:bg-slate-100 transition"
+                      >
+                        Edit
+                      </button>
 
-                    </tr>
-                  )
-                )
-              )}
+                      <button
+                        onClick={() =>
+                          deleteExpense(
+                            expense
+                          )
+                        }
+                        disabled={
+                          deletingId ===
+                          expense.id
+                        }
+                        className="px-3 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition disabled:opacity-50"
+                      >
+                        {deletingId ===
+                        expense.id
+                          ? "..."
+                          : "Delete"}
+                      </button>
 
-            </tbody>
+                    </div>
 
-          </table>
+                  </div>
+
+
+                  {/* MOBILE */}
+
+                  <div className="md:hidden p-5">
+
+                    <div className="flex items-start justify-between gap-4">
+
+                      <div>
+
+                        <p className="font-semibold text-slate-900">
+                          {expense.category}
+                        </p>
+
+                        <p className="text-xs text-slate-400 mt-1">
+                          {expense.property
+                            ?.name ||
+                            "Unknown Property"}
+                        </p>
+
+                      </div>
+
+                      <p className="font-bold text-slate-900">
+                        {formatCurrency(
+                          Number(
+                            expense.amount ||
+                              0
+                          )
+                        )}
+                      </p>
+
+                    </div>
+
+
+                    <div className="flex items-center justify-between mt-4">
+
+                      <p className="text-sm text-slate-500">
+                        {formatDate(
+                          expense.expense_date
+                        )}
+                      </p>
+
+                      <div className="flex gap-2">
+
+                        <button
+                          onClick={() =>
+                            openEditExpense(
+                              expense
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-lg border text-sm"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            deleteExpense(
+                              expense
+                            )
+                          }
+                          disabled={
+                            deletingId ===
+                            expense.id
+                          }
+                          className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-sm"
+                        >
+                          Delete
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              )
+            )}
 
         </div>
 
       </div>
+
+
+      {/* =====================================================
+          EDIT EXPENSE MODAL
+      ===================================================== */}
+
+      {editingExpense && (
+
+        <div
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() =>
+            setEditingExpense(null)
+          }
+        >
+
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            {/* HEADER */}
+
+            <div className="px-6 py-5 border-b flex items-center justify-between">
+
+              <div>
+
+                <h2 className="text-xl font-bold text-slate-900">
+                  Edit Expense
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Update expense details
+                </p>
+
+              </div>
+
+              <button
+                onClick={() =>
+                  setEditingExpense(null)
+                }
+                className="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-500"
+              >
+                ✕
+              </button>
+
+            </div>
+
+
+            {/* BODY */}
+
+            <div className="p-6 space-y-5">
+
+              {/* PROPERTY */}
+
+              <div>
+
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Property / Unit
+                </label>
+
+                <PropertySelector
+                  value={
+                    editPropertyId
+                  }
+                  onChange={
+                    setEditPropertyId
+                  }
+                  includeAll={false}
+                  label="Property / Unit"
+                />
+
+              </div>
+
+
+              {/* CATEGORY */}
+
+              <div>
+
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Category
+                </label>
+
+                <input
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5"
+                  value={
+                    editCategory
+                  }
+                  onChange={(e) =>
+                    setEditCategory(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+
+              {/* AMOUNT */}
+
+              <div>
+
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Amount
+                </label>
+
+                <input
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5"
+                  type="number"
+                  min="0"
+                  value={
+                    editAmount
+                  }
+                  onChange={(e) =>
+                    setEditAmount(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+
+              {/* DATE */}
+
+              <div>
+
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Expense Date
+                </label>
+
+                <input
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5"
+                  type="date"
+                  value={
+                    editExpenseDate
+                  }
+                  onChange={(e) =>
+                    setEditExpenseDate(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+            </div>
+
+
+            {/* FOOTER */}
+
+            <div className="px-6 py-4 border-t bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+
+              <button
+                onClick={() =>
+                  setEditingExpense(null)
+                }
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={
+                  updateExpense
+                }
+                disabled={
+                  loading ||
+                  !editCategory.trim() ||
+                  !editAmount ||
+                  !editPropertyId ||
+                  !editExpenseDate
+                }
+                className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
+              >
+                {loading
+                  ? "Saving..."
+                  : "Save Changes"}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
     </div>
   );
